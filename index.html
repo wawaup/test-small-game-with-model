@@ -1,0 +1,1997 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>樱花守卫战</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="魔法少女塔防小游戏：召唤魔法少女，守护樱之水晶。">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=ZCOOL+KuaiLe&family=Noto+Sans+SC:wght@400;500;700&display=swap">
+<style>
+/* Layout: pill HUD ribbon on top; the battlefield canvas fills the left and a sticker-style command panel sits on the right (stacks underneath on portrait screens). */
+:root{
+  --sky:#fff1f7;
+  --lilac:#ebe6ff;
+  --paper:#fffafd;
+  --ink:#4a3763;
+  --ink-soft:#7f6f99;
+  --line:#ead9f0;
+  --sakura:#ff6fae;
+  --sakura-deep:#e2448c;
+  --sakura-soft:#ffe3f0;
+  --gold:#ffbf3c;
+  --mint:#2fae74;
+  --danger:#e93d63;
+  --ice:#5aaeff;
+  --dot:rgba(255,111,174,.14);
+  --font-display:"ZCOOL KuaiLe","Hiragino Maru Gothic ProN","Yuanti SC","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-body:"Noto Sans SC","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--sky);color:var(--ink);font-family:var(--font-body);font-size:14px;line-height:1.5;overflow:hidden;-webkit-tap-highlight-color:transparent;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--ice);outline-offset:2px}
+
+#app{height:100%;display:flex;flex-direction:column;gap:10px;padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:radial-gradient(var(--dot) 1.6px,transparent 1.9px) 0 0/20px 20px,linear-gradient(160deg,var(--sky) 0%,var(--lilac) 100%)}
+
+/* ---------- HUD ---------- */
+#hud{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;padding:6px 8px;background:var(--paper);border:3px solid var(--ink);border-radius:28px;box-shadow:0 4px 0 var(--ink)}
+.brand{display:flex;align-items:center;gap:8px;font-family:var(--font-display);font-size:23px;line-height:1;white-space:nowrap}
+.brand svg{width:36px;height:36px;flex:none}
+.stats{display:flex;gap:8px;flex-wrap:wrap}
+.stat{display:flex;align-items:center;gap:6px;height:38px;padding:0 14px 0 7px;border-radius:999px;background:var(--sakura-soft);font-family:var(--font-display);font-size:21px;line-height:1;font-variant-numeric:tabular-nums;white-space:nowrap}
+.stat svg{width:26px;height:26px;flex:none}
+.stat small{font-size:14px;color:var(--ink-soft)}
+.stat.hit{animation:hit .5s}
+@keyframes hit{0%,100%{transform:none}20%{transform:translateX(-4px) scale(1.08);background:#ffc0cf}55%{transform:translateX(4px)}}
+.ctrls{display:flex;gap:6px;margin-left:auto}
+.icon-btn{display:grid;place-items:center;min-width:42px;height:38px;padding:0 9px;border:2.5px solid var(--ink);border-radius:13px;background:#fff;box-shadow:0 3px 0 var(--ink);cursor:pointer;font-family:var(--font-display);font-size:18px;line-height:1}
+.icon-btn svg{width:20px;height:20px}
+.icon-btn:active{transform:translateY(3px);box-shadow:0 0 0 var(--ink)}
+
+/* ---------- Stage ---------- */
+#stage{flex:1;min-height:0;display:flex;gap:14px}
+#field{flex:1;min-width:0;min-height:0;display:flex;align-items:center;justify-content:center}
+#frame{position:relative;border:3px solid var(--ink);border-radius:22px;overflow:hidden;background:#bfe8a8;line-height:0;box-shadow:0 5px 0 var(--ink),0 18px 36px rgba(74,55,99,.18)}
+#game{display:block;touch-action:none}
+#bannerLayer{position:absolute;inset:0;display:grid;place-items:center;overflow:hidden;pointer-events:none;line-height:1.25}
+.banner{grid-area:1/1;width:100%;padding:12px 0 14px;text-align:center;color:#fff;animation:banner 2.3s ease both;
+  background:linear-gradient(90deg,rgba(255,111,174,0),rgba(255,111,174,.93) 18%,rgba(255,111,174,.93) 82%,rgba(255,111,174,0))}
+.banner.boss{background:linear-gradient(90deg,rgba(52,22,82,0),rgba(52,22,82,.93) 18%,rgba(52,22,82,.93) 82%,rgba(52,22,82,0))}
+.banner.clear{background:linear-gradient(90deg,rgba(47,174,116,0),rgba(47,174,116,.93) 18%,rgba(47,174,116,.93) 82%,rgba(47,174,116,0))}
+.b-title{font-family:var(--font-display);font-size:clamp(24px,4.6vw,46px);letter-spacing:.08em;
+  text-shadow:0 -2px 0 var(--ink),2px 0 0 var(--ink),0 2px 0 var(--ink),-2px 0 0 var(--ink),2px 2px 0 var(--ink),-2px 2px 0 var(--ink),2px -2px 0 var(--ink),-2px -2px 0 var(--ink)}
+.banner.boss .b-title{color:#ffd0e6}
+.b-sub{margin-top:2px;font-size:clamp(12px,1.7vw,16px);font-weight:700;letter-spacing:.12em}
+@keyframes banner{0%{opacity:0;transform:translateX(-70px) skewX(-10deg)}14%{opacity:1;transform:none}82%{opacity:1;transform:none}100%{opacity:0;transform:translateX(70px)}}
+#toast{position:absolute;left:50%;bottom:14px;padding:6px 16px;border-radius:999px;background:var(--ink);color:#fff;font-size:14px;font-weight:700;line-height:1.4;white-space:nowrap;pointer-events:none;opacity:0;transform:translate(-50%,8px);transition:opacity .2s,transform .2s}
+#toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* ---------- Panel ---------- */
+#panel{width:300px;flex:none;display:flex;flex-direction:column;gap:10px;min-height:0;overflow-y:auto;padding:12px;background:var(--paper);border:3px solid var(--ink);border-radius:22px;box-shadow:0 5px 0 var(--ink)}
+.sec-title{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin:0;font-family:var(--font-display);font-weight:400;font-size:18px;line-height:1.2}
+.sec-title small{font-family:var(--font-body);font-size:12px;color:var(--ink-soft)}
+#shop{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+.card{position:relative;display:flex;align-items:center;gap:4px;padding:4px 6px 4px 2px;border:2.5px solid var(--ink);border-radius:16px;background:linear-gradient(135deg,var(--tint) 0%,#fff 80%);box-shadow:0 3px 0 var(--ink);cursor:pointer;line-height:1.25;text-align:left;transition:transform .12s}
+.card .txt{display:flex;flex-direction:column;min-width:0}
+.card:hover{transform:translateY(-2px)}
+.card:active{transform:translateY(2px);box-shadow:0 1px 0 var(--ink)}
+.card canvas{width:50px;height:50px;flex:none}
+.card .nm{font-family:var(--font-display);font-size:18px}
+.card .role{font-size:11px;color:var(--ink-soft)}
+.card .cost{display:flex;align-items:center;gap:3px;font-family:var(--font-display);font-size:16px}
+.cost svg{width:16px;height:16px;flex:none}
+.card .key{position:absolute;top:-8px;right:-6px;width:19px;height:19px;display:grid;place-items:center;border:1.5px solid var(--ink);border-radius:6px;background:#fff;font-size:11px;font-weight:700;line-height:1}
+.card.sel{background:linear-gradient(135deg,var(--sakura) 0%,#fff 85%);box-shadow:0 3px 0 var(--ink),0 0 0 4px rgba(255,111,174,.35)}
+.card.poor{opacity:.6}
+.card.poor .cost{color:var(--danger)}
+
+#info{display:flex;flex-direction:column;gap:8px;padding-top:12px;border-top:2px dashed var(--line)}
+.info-head{display:flex;align-items:center;gap:10px}
+.info-head canvas{width:56px;height:56px;flex:none;border:2px solid var(--ink);border-radius:14px;background:var(--tint)}
+.info-name{display:flex;align-items:center;gap:6px;font-family:var(--font-display);font-size:21px;line-height:1.1}
+.lv{padding:2px 7px;border-radius:999px;background:var(--ink);color:#fff;font-size:12px;line-height:1.2}
+.info-role{font-size:12px;color:var(--ink-soft)}
+.info-desc{margin:0;font-size:13px;color:var(--ink-soft)}
+.statlist{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;margin:0;font-size:13px;line-height:1.45}
+.statlist dt{color:var(--ink-soft)}
+.statlist dd{margin:0;font-weight:700;font-variant-numeric:tabular-nums}
+.statlist .up{color:var(--mint)}
+.info-meta{display:flex;gap:14px;font-size:12px;color:var(--ink-soft);font-variant-numeric:tabular-nums}
+.info-meta b{color:var(--ink)}
+.seg{display:flex;gap:3px;padding:3px;border-radius:12px;background:var(--sakura-soft)}
+.seg button{flex:1;padding:5px 0;border:0;border-radius:9px;background:transparent;cursor:pointer;font-size:13px;font-weight:700}
+.seg button.on{background:#fff;box-shadow:0 2px 0 var(--ink)}
+.info-actions{display:grid;grid-template-columns:1.35fr 1fr;gap:8px}
+.tips{display:flex;flex-direction:column;gap:6px;margin:0;padding-left:18px;font-size:13px;color:var(--ink-soft)}
+.tips b{color:var(--ink)}
+.hint{margin:0;padding:7px 10px;border-radius:12px;background:var(--sakura-soft);font-size:12px;font-weight:700}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 12px;border:3px solid var(--ink);border-radius:14px;background:#fff;box-shadow:0 4px 0 var(--ink);cursor:pointer;font-family:var(--font-display);font-size:18px;line-height:1.1;white-space:nowrap;transition:transform .08s}
+.btn:active:not(:disabled){transform:translateY(4px);box-shadow:0 0 0 var(--ink)}
+.btn-primary{background:var(--sakura);color:#fff;text-shadow:0 2px 0 rgba(74,55,99,.35)}
+.btn:disabled{cursor:not-allowed;opacity:.5}
+.btn .cost{display:inline-flex;align-items:center;gap:2px;font-size:15px}
+
+#wavebox{display:flex;flex-direction:column;gap:8px;margin-top:auto;padding-top:12px;border-top:2px dashed var(--line)}
+.wave-sub{font-size:12px;color:var(--ink-soft)}
+#wavePreview{display:flex;flex-wrap:wrap;gap:5px;min-height:28px}
+.echip{display:flex;align-items:center;gap:1px;padding:1px 7px 1px 1px;border-radius:999px;background:#f3edfb;font-family:var(--font-display);font-size:14px;line-height:1}
+.echip img{width:26px;height:26px}
+.echip.boss{background:#3a1a5c;color:#ffd0e6}
+#btnWave{width:100%}
+
+/* ---------- Overlays ---------- */
+.overlay{position:fixed;inset:0;z-index:20;display:flex;overflow-y:auto;
+  padding-block:max(20px,env(safe-area-inset-top,0px)) max(20px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.overlay .fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none}
+.screen{background:linear-gradient(180deg,#ffe7f1 0%,#ffd5e7 40%,#efdcff 75%,#dde8ff 100%)}
+.screen.end{background:linear-gradient(180deg,rgba(255,231,241,.9) 0%,rgba(239,220,255,.92) 100%)}
+.screen.end.lose{background:linear-gradient(180deg,rgba(214,204,236,.92) 0%,rgba(178,164,214,.94) 100%)}
+.dim{background:rgba(74,55,99,.45);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+
+.title-wrap{position:relative;margin:auto;width:100%;max-width:640px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center}
+.eyebrow{padding:4px 12px 4px 18px;border:2.5px solid var(--ink);border-radius:999px;background:#fff;font-family:var(--font-display);font-size:15px;letter-spacing:.4em}
+.logo{display:flex;flex-wrap:wrap;justify-content:center;margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(54px,13vw,112px);line-height:1.05;letter-spacing:.03em;color:#fff;
+  text-shadow:0 -4px 0 var(--ink),4px 0 0 var(--ink),0 4px 0 var(--ink),-4px 0 0 var(--ink),3px 3px 0 var(--ink),-3px 3px 0 var(--ink),3px -3px 0 var(--ink),-3px -3px 0 var(--ink),0 11px 0 var(--sakura-deep),4px 10px 0 var(--sakura-deep),-4px 10px 0 var(--sakura-deep)}
+.logo .pink{color:#ffc4df}
+.tagline{max-width:34em;margin:0;font-size:15px;line-height:1.7}
+.tagline span{display:inline-block}
+.hero{width:min(560px,100%);height:200px}
+.diff{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;width:min(480px,100%)}
+.diff button{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border:2.5px solid var(--ink);border-radius:14px;background:#fff;box-shadow:0 3px 0 var(--ink);cursor:pointer;font-family:var(--font-display);font-size:20px;line-height:1.15}
+.diff button small{font-family:var(--font-body);font-size:11px;color:var(--ink-soft)}
+.diff button[aria-checked="true"]{background:var(--sakura);color:#fff}
+.diff button[aria-checked="true"] small{color:#fff}
+.btn-big{padding:12px 44px;border-radius:20px;font-size:28px}
+.howto{width:min(480px,100%);padding:10px 14px;border:2.5px solid var(--ink);border-radius:16px;background:rgba(255,255,255,.78);text-align:left}
+.howto summary{cursor:pointer;font-family:var(--font-display);font-size:17px}
+.howto ul{display:flex;flex-direction:column;gap:5px;margin:8px 0 2px;padding-left:20px;font-size:13px}
+.best{margin:0;font-size:13px;color:var(--ink-soft)}
+
+.end-card,.pause-card{position:relative;margin:auto;width:min(540px,100%);display:flex;flex-direction:column;align-items:center;gap:12px;padding:22px 20px 20px;border:3px solid var(--ink);border-radius:26px;background:var(--paper);box-shadow:0 6px 0 var(--ink);text-align:center}
+.pause-card{width:min(380px,100%)}
+.end-title,.pause-card h2{margin:0;font-family:var(--font-display);font-weight:400;font-size:clamp(38px,8vw,56px);line-height:1.1;color:var(--sakura)}
+.lose .end-title{color:var(--ink)}
+.pause-card h2{font-size:40px}
+.end-msg,.pause-card p{margin:0;font-size:14px;color:var(--ink-soft)}
+.end-msg span{display:inline-block}
+.stars{display:flex;gap:6px}
+.stars svg{width:46px;height:46px}
+.stars svg.pop{animation:pop .45s cubic-bezier(.3,1.6,.5,1) both}
+@keyframes pop{0%{transform:scale(0) rotate(-40deg)}100%{transform:none}}
+.end-hero{width:100%;height:150px}
+.end-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;width:100%}
+.end-stats div{display:flex;flex-direction:column;gap:2px;padding:8px 4px;border-radius:14px;background:var(--sakura-soft)}
+.end-stats span{font-size:12px;color:var(--ink-soft)}
+.end-stats b{font-family:var(--font-display);font-weight:400;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}
+.end-actions{display:flex;flex-wrap:wrap;justify-content:center;gap:10px}
+
+/* ---------- Portrait / small screens ---------- */
+@media (max-aspect-ratio:1/1),(max-width:700px){
+  body{overflow-x:hidden;overflow-y:auto}
+  #app{height:auto;min-height:100%}
+  #stage{flex-direction:column}
+  #panel{width:100%;overflow:visible}
+  #shop{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .card{flex-direction:column;padding:4px 4px 6px;text-align:center}
+  .card .txt{align-items:center}
+}
+@media (max-width:520px){
+  .brand span{display:none}
+  .stat{height:32px;padding:0 10px 0 5px;font-size:17px}
+  .stat svg{width:20px;height:20px}
+  .icon-btn{min-width:36px;height:34px;font-size:15px}
+  .card canvas{width:44px;height:44px}
+  .card .role{display:none}
+  .card .nm{font-size:16px}
+  .end-stats{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hero{height:150px}
+}
+@media (prefers-reduced-motion:reduce){
+  .banner,.stars svg.pop,.stat.hit{animation-duration:.01s}
+}
+</style>
+</head>
+<body>
+<div id="app">
+  <header id="hud">
+    <div class="brand">
+      <svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="20" r="18" fill="#ff6fae" stroke="#4a3763" stroke-width="3"/><g fill="#fff"><path id="pt" d="M20 20c-3-3-4.6-7-3-10.2l3 1.6 3-1.6c1.6 3.2 0 7.2-3 10.2z"/><use href="#pt" transform="rotate(72 20 20)"/><use href="#pt" transform="rotate(144 20 20)"/><use href="#pt" transform="rotate(216 20 20)"/><use href="#pt" transform="rotate(288 20 20)"/></g><circle cx="20" cy="20" r="2.4" fill="#ffd34d"/></svg>
+      <span>樱花守卫战</span>
+    </div>
+    <div class="stats">
+      <div class="stat" id="statLives" title="水晶生命"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.6-4.6-9.6-9.3C.9 8.3 3 4.5 6.8 4.5c2.1 0 3.6 1.2 5.2 3 1.6-1.8 3.1-3 5.2-3 3.8 0 5.9 3.8 4.4 7.2C19.6 16.4 12 21 12 21z" fill="#ff5d8f" stroke="#4a3763" stroke-width="2" stroke-linejoin="round"/><ellipse cx="7.6" cy="9.2" rx="1.9" ry="1.2" fill="#fff" opacity=".85"/></svg><span id="livesVal">20</span></div>
+      <div class="stat" id="statGold" title="金币"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffcb47" stroke="#4a3763" stroke-width="2"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#e59a12" stroke-width="1.6"/><path d="M12 8.3l1.1 2.3 2.5.3-1.9 1.7.5 2.5-2.2-1.3-2.2 1.3.5-2.5-1.9-1.7 2.5-.3z" fill="#fff4cc"/></svg><span id="goldVal">0</span></div>
+      <div class="stat" id="statWave" title="波次"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 21V3.5" stroke="#4a3763" stroke-width="2.2" stroke-linecap="round"/><path d="M7 4h11.5l-2.8 4.2 2.8 4.3H7z" fill="#7cc6ff" stroke="#4a3763" stroke-width="2" stroke-linejoin="round"/></svg><span><span id="waveVal">0</span><small> / <span id="waveTotal">15</span> 波</small></span></div>
+    </div>
+    <div class="ctrls">
+      <button class="icon-btn" id="btnSpeed" type="button" title="游戏速度 (F)" aria-label="游戏速度">1×</button>
+      <button class="icon-btn" id="btnPause" type="button" title="暂停 (空格)" aria-label="暂停"><svg viewBox="0 0 20 20" aria-hidden="true"><rect x="4" y="3" width="4.2" height="14" rx="1.5" fill="#4a3763"/><rect x="11.8" y="3" width="4.2" height="14" rx="1.5" fill="#4a3763"/></svg></button>
+      <button class="icon-btn" id="btnSound" type="button" title="音效" aria-label="音效开关" aria-pressed="true"></button>
+    </div>
+  </header>
+
+  <main id="stage">
+    <div id="field">
+      <div id="frame">
+        <canvas id="game" width="960" height="640" aria-label="战场"></canvas>
+        <div id="bannerLayer"></div>
+        <div id="toast" role="status"></div>
+      </div>
+    </div>
+    <aside id="panel">
+      <h2 class="sec-title">召唤魔法少女 <small>按 1–4 快速选择</small></h2>
+      <div id="shop"></div>
+      <section id="info" aria-live="polite"></section>
+      <section id="wavebox">
+        <h2 class="sec-title"><span id="waveLabel">下一波 · 第 1 波</span></h2>
+        <div class="wave-sub" id="waveSub"></div>
+        <div id="wavePreview"></div>
+        <button class="btn btn-primary" id="btnWave" type="button">开始第 1 波</button>
+      </section>
+    </aside>
+  </main>
+</div>
+
+<div class="overlay screen" id="startScreen">
+  <canvas class="fx"></canvas>
+  <div class="title-wrap">
+    <div class="eyebrow">魔法少女塔防</div>
+    <h1 class="logo"><span class="pink">樱花</span><span>守卫战</span></h1>
+    <p class="tagline"><span>暗影魔物沿着林间小路涌向樱之水晶。</span><span>召唤魔法少女、升级她们的魔力，</span><span>撑过 15 波进攻！</span></p>
+    <canvas class="hero" id="titleHero"></canvas>
+    <div class="diff" role="radiogroup" aria-label="选择难度">
+      <button type="button" role="radio" data-diff="easy" aria-checked="false">简单<small>生命 30 · 金币 300</small></button>
+      <button type="button" role="radio" data-diff="normal" aria-checked="true">普通<small>生命 20 · 金币 220</small></button>
+      <button type="button" role="radio" data-diff="hard" aria-checked="false">困难<small>生命 10 · 魔物更强</small></button>
+    </div>
+    <button class="btn btn-primary btn-big" id="btnStart" type="button">开始守护</button>
+    <details class="howto">
+      <summary>怎么玩？</summary>
+      <ul>
+        <li>点右侧角色卡（或按 1–4），再点草地召唤魔法少女。手机上点一下预览、再点一下确认。</li>
+        <li>魔物沿小路走向樱之水晶，每漏掉一只就扣生命，生命归零就失败。</li>
+        <li>击败魔物得金币，用来召唤新角色或升级。满级 Lv.3 的角色会长出翅膀。</li>
+        <li>南瓜骑士有护甲，胖胖史莱姆会分裂，第 5、10、15 波有魔王出没。</li>
+        <li>两波之间会自动倒计时，提前开战可以拿到额外金币。</li>
+      </ul>
+    </details>
+    <p class="best" id="bestRec"></p>
+  </div>
+</div>
+
+<div class="overlay dim" id="pauseScreen" hidden>
+  <div class="pause-card">
+    <h2>暂停中</h2>
+    <p>喝口茶休息一下吧～</p>
+    <div class="end-actions">
+      <button class="btn btn-primary" id="btnResume" type="button">继续战斗</button>
+      <button class="btn" id="btnRestart" type="button">重新开始</button>
+      <button class="btn" id="btnQuit" type="button">返回标题</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay screen end" id="endScreen" hidden>
+  <canvas class="fx"></canvas>
+  <div class="end-card">
+    <h2 class="end-title" id="endTitle">守护成功！</h2>
+    <div class="stars" id="endStars"></div>
+    <canvas class="end-hero" id="endHero"></canvas>
+    <p class="end-msg" id="endMsg"></p>
+    <div class="end-stats">
+      <div><span>到达波次</span><b id="esWave">0</b></div>
+      <div><span>击败魔物</span><b id="esKills">0</b></div>
+      <div><span>剩余生命</span><b id="esLives">0</b></div>
+      <div><span>累计金币</span><b id="esGold">0</b></div>
+    </div>
+    <div class="end-actions">
+      <button class="btn btn-primary" id="btnRetry" type="button">再来一局</button>
+      <button class="btn" id="btnHome" type="button">返回标题</button>
+    </div>
+  </div>
+</div>
+
+<noscript>这个小游戏需要开启 JavaScript 才能运行。</noscript>
+
+<script>
+(() => {
+'use strict';
+
+/* =====================================================================
+   Constants & data
+   ===================================================================== */
+const TILE = 64, COLS = 15, ROWS = 10, W = TILE * COLS, H = TILE * ROWS;
+const TAU = Math.PI * 2;
+const OUT = '#4a3763', SKIN = '#ffeadf';
+const FONT = '"ZCOOL KuaiLe","PingFang SC","Microsoft YaHei",sans-serif';
+const $ = s => document.querySelector(s);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const COIN_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9.5" fill="#ffcb47" stroke="#4a3763" stroke-width="2"/><circle cx="12" cy="12" r="6.2" fill="none" stroke="#e59a12" stroke-width="1.6"/></svg>';
+const STAR_SVG = on => `<svg viewBox="0 0 48 48" aria-hidden="true"><path d="M24 4l6 12.6 13.8 1.8-10.1 9.6 2.6 13.7L24 35l-12.3 6.7 2.6-13.7L4.2 18.4 18 16.6z" fill="${on ? '#ffcb47' : '#e6dcef'}" stroke="#4a3763" stroke-width="3" stroke-linejoin="round"/>${on ? '<path d="M17 19l3-.4" stroke="#fff" stroke-width="3" stroke-linecap="round"/>' : ''}</svg>`;
+const SOUND_ON = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3l4-3.5v12l-4-3.5H3z" fill="#4a3763"/><path d="M13 7a4 4 0 010 6M15.3 4.8a7 7 0 010 10.4" stroke="#4a3763" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>';
+const SOUND_OFF = '<svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 7.5h3l4-3.5v12l-4-3.5H3z" fill="#4a3763"/><path d="M13 7.5l5 5M18 7.5l-5 5" stroke="#4a3763" stroke-width="1.8" stroke-linecap="round"/></svg>';
+
+const TOWERS = {
+  sakura: {
+    name: '小樱', title: '樱花射手', cost: 50, desc: '连续射出樱花弹，攻速快，专心打单体。',
+    hair: '#ffa3cd', eye: '#c8326f', eye2: '#ff9ccb', dress: '#ffffff', trim: '#ff5c9d',
+    base: '#ffd6e8', base2: '#f3a2c6', orb: '#ff7eb6', glow: '255,126,182', wand: '#ffe58a', tint: '#ffe0ee', num: '#ff5c9d',
+    levels: [
+      { dmg: 11, range: 2.6, rate: 0.6 },
+      { dmg: 19, range: 2.9, rate: 0.5, cost: 60 },
+      { dmg: 32, range: 3.2, rate: 0.42, cost: 110 },
+    ],
+  },
+  yuki: {
+    name: '雪奈', title: '冰霜法师', cost: 70, desc: '冰晶命中后让魔物减速，满级后冰晶会溅射。',
+    hair: '#dcecff', eye: '#2a72c9', eye2: '#8fd3ff', dress: '#e3f2ff', trim: '#4fa3f7',
+    base: '#d9eeff', base2: '#9fc9f2', orb: '#a5e6ff', glow: '124,198,255', wand: '#ffffff', tint: '#e1f1ff', num: '#3d8fe0',
+    levels: [
+      { dmg: 5, range: 2.4, rate: 1.0, slow: 0.35, slowDur: 1.6 },
+      { dmg: 9, range: 2.7, rate: 0.9, slow: 0.45, slowDur: 2.0, cost: 70 },
+      { dmg: 15, range: 3.0, rate: 0.8, slow: 0.55, slowDur: 2.4, splash: 0.9, cost: 120 },
+    ],
+  },
+  homura: {
+    name: '焰华', title: '爆炎魔女', cost: 100, desc: '投掷火球造成范围爆炸，单发伤害高，克制护甲。',
+    hair: '#ff7a72', eye: '#d9731a', eye2: '#ffd166', dress: '#6c43a8', trim: '#ff9f45',
+    base: '#ffe0cc', base2: '#f2aa86', orb: '#ff8a3c', glow: '255,138,60', wand: '#9a6440', hat: '#4b2c7c', tint: '#ffe6d6', num: '#f07320',
+    levels: [
+      { dmg: 30, range: 2.8, rate: 1.5, splash: 1.0 },
+      { dmg: 55, range: 3.1, rate: 1.35, splash: 1.2, cost: 110 },
+      { dmg: 95, range: 3.4, rate: 1.2, splash: 1.45, cost: 170 },
+    ],
+  },
+  rai: {
+    name: '雷音', title: '雷光巫女', cost: 120, desc: '闪电在魔物之间连锁弹跳，无视护甲。',
+    hair: '#ffe27e', eye: '#7d48d1', eye2: '#cfa8ff', dress: '#ffffff', trim: '#ff4d61',
+    base: '#efe4ff', base2: '#c3a8ee', orb: '#fff27a', glow: '255,236,110', wand: '#ff4d61', tint: '#fff4cf', num: '#c79a00',
+    levels: [
+      { dmg: 20, range: 2.6, rate: 1.2, chain: 3 },
+      { dmg: 34, range: 2.9, rate: 1.05, chain: 4, cost: 130 },
+      { dmg: 55, range: 3.2, rate: 0.9, chain: 6, cost: 200 },
+    ],
+  },
+};
+const TOWER_KEYS = ['sakura', 'yuki', 'homura', 'rai'];
+
+const ENEMIES = {
+  slime:  { name: '果冻史莱姆', hp: 40,   speed: 1.15, reward: 5,   armor: 0, lives: 1,  r: 15 },
+  ghost:  { name: '调皮幽灵',   hp: 30,   speed: 2.0,  reward: 6,   armor: 0, lives: 1,  r: 14 },
+  knight: { name: '南瓜骑士',   hp: 130,  speed: 0.8,  reward: 12,  armor: 8, lives: 2,  r: 17 },
+  fat:    { name: '胖胖史莱姆', hp: 150,  speed: 0.75, reward: 10,  armor: 0, lives: 2,  r: 21 },
+  mini:   { name: '小史莱姆',   hp: 18,   speed: 1.5,  reward: 2,   armor: 0, lives: 1,  r: 10 },
+  boss:   { name: '暗影魔王',   hp: 1000, speed: 0.55, reward: 100, armor: 6, lives: 5,  r: 28 },
+};
+
+// [type, count, interval seconds]; groups spawn one after another
+const WAVES = [
+  [['slime', 8, 1.0]],
+  [['slime', 10, 0.8], ['ghost', 4, 0.7]],
+  [['ghost', 10, 0.55], ['slime', 8, 0.7]],
+  [['slime', 12, 0.6], ['knight', 3, 1.8]],
+  [['fat', 3, 2.2], ['ghost', 8, 0.5], ['boss', 1, 0]],
+  [['knight', 5, 1.4], ['slime', 14, 0.5]],
+  [['ghost', 16, 0.4], ['fat', 4, 1.6]],
+  [['knight', 8, 1.2], ['ghost', 10, 0.45]],
+  [['fat', 7, 1.3], ['slime', 20, 0.35]],
+  [['knight', 8, 1.0], ['ghost', 12, 0.4], ['boss', 1, 0]],
+  [['slime', 24, 0.3], ['knight', 8, 0.9]],
+  [['ghost', 22, 0.3], ['fat', 8, 1.0]],
+  [['knight', 12, 0.8], ['fat', 8, 1.0]],
+  [['ghost', 20, 0.3], ['knight', 10, 0.8], ['fat', 8, 0.9]],
+  [['knight', 10, 0.8], ['fat', 10, 0.9], ['ghost', 20, 0.3], ['boss', 2, 5]],
+];
+
+const DIFFS = {
+  easy:   { name: '简单', lives: 30, gold: 300, hp: 0.7, late: 0 },
+  normal: { name: '普通', lives: 20, gold: 220, hp: 1.0, late: 0.001 },
+  hard:   { name: '困难', lives: 10, gold: 200, hp: 1.0, late: 0.002 },
+};
+
+const BAL = { hpLin: 0.16, hpQuad: 0.06, autoDelay: 20, sellRate: 0.7, clearBase: 15, clearPer: 5 };
+// enemy HP multiplier for wave w; harder modes add a late-game term so early waves stay fair
+function hpScale(w) { const D = DIFFS[G.diff], k = w - 1; return D.hp * (1 + BAL.hpLin * k + BAL.hpQuad * k * k + D.late * k * k * k); }
+
+const MODES = [{ k: 'first', n: '最前' }, { k: 'strong', n: '最强' }, { k: 'close', n: '最近' }];
+
+/* =====================================================================
+   Map
+   ===================================================================== */
+const PATH_TILES = [[-1, 1], [2, 1], [2, 7], [6, 7], [6, 3], [9, 3], [9, 8], [12, 8], [12, 4], [14, 4]];
+const PATH = PATH_TILES.map(([c, r]) => ({ x: (c + 0.5) * TILE, y: (r + 0.5) * TILE }));
+const SEGS = [];
+let PATH_LEN = 0;
+for (let i = 0; i < PATH.length - 1; i++) {
+  const a = PATH[i], b = PATH[i + 1], len = Math.hypot(b.x - a.x, b.y - a.y);
+  SEGS.push({ a, b, len, start: PATH_LEN, dx: (b.x - a.x) / len, dy: (b.y - a.y) / len });
+  PATH_LEN += len;
+}
+function posAt(d) {
+  for (const s of SEGS) {
+    if (d <= s.start + s.len) { const k = d - s.start; return { x: s.a.x + s.dx * k, y: s.a.y + s.dy * k, dx: s.dx }; }
+  }
+  const s = SEGS[SEGS.length - 1];
+  return { x: s.b.x, y: s.b.y, dx: s.dx };
+}
+
+const GRASS = 0, ROAD = 1, BLOCK = 2;
+const grid = Array.from({ length: ROWS }, () => new Array(COLS).fill(GRASS));
+for (let i = 0; i < PATH_TILES.length - 1; i++) {
+  let [c, r] = PATH_TILES[i];
+  const [c1, r1] = PATH_TILES[i + 1];
+  const sc = Math.sign(c1 - c), sr = Math.sign(r1 - r);
+  for (;;) {
+    if (c >= 0 && c < COLS && r >= 0 && r < ROWS) grid[r][c] = ROAD;
+    if (c === c1 && r === r1) break;
+    c += sc; r += sr;
+  }
+}
+const TREES = [[0, 8], [4, 0], [11, 0], [14, 1], [14, 8], [7, 9], [0, 5], [4, 9]];
+const ROCKS = [[8, 5], [13, 2]];
+for (const [c, r] of [...TREES, ...ROCKS]) grid[r][c] = BLOCK;
+const CRYSTAL = { x: 14 * TILE + 30, y: 4 * TILE + 26 };
+const GS = 1.12; // girls are drawn slightly larger than their tile on the battlefield
+const PORTAL = { x: 6, y: PATH[0].y };
+
+/* =====================================================================
+   State
+   ===================================================================== */
+const G = {
+  state: 'title', paused: false, speed: 1, diff: 'normal',
+  lives: 20, maxLives: 20, gold: 0, wave: 0, phase: 'build', countdown: 0, waveTime: 0,
+  enemies: [], towers: [], projectiles: [], effects: [], particles: [], texts: [], spawnQueue: [],
+  selected: null, buildType: null, hover: null,
+  time: 0, idSeq: 1, shake: 0, leakFlash: 0, crystalHurt: 0, endTimer: 0, win: false,
+  stats: { kills: 0, goldEarned: 0, built: 0, leaked: 0 }, silent: false,
+};
+
+/* =====================================================================
+   Sound (tiny WebAudio synth, starts after first click)
+   ===================================================================== */
+const Sound = (() => {
+  let ac = null, master = null, noiseBuf = null, enabled = true;
+  const last = {};
+  function init() {
+    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
+    try {
+      ac = new (window.AudioContext || window.webkitAudioContext)();
+      master = ac.createGain(); master.gain.value = 0.22; master.connect(ac.destination);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * 0.5, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    } catch (e) { ac = null; }
+  }
+  function tone(freq, dur, o = {}) {
+    const t = ac.currentTime + (o.delay || 0);
+    const osc = ac.createOscillator(), g = ac.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    if (o.slide) osc.frequency.exponentialRampToValueAtTime(Math.max(30, freq * o.slide), t + dur);
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(o.vol || 0.2, t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(g); g.connect(master); osc.start(t); osc.stop(t + dur + 0.02);
+  }
+  function noise(dur, o = {}) {
+    const t = ac.currentTime + (o.delay || 0);
+    const s = ac.createBufferSource(); s.buffer = noiseBuf;
+    const f = ac.createBiquadFilter(); f.type = 'lowpass';
+    f.frequency.setValueAtTime(o.freq || 1200, t); f.frequency.exponentialRampToValueAtTime(120, t + dur);
+    const g = ac.createGain(); g.gain.setValueAtTime(o.vol || 0.2, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur);
+  }
+  const arp = (notes, step, o) => notes.forEach((f, i) => tone(f, o.dur || 0.16, { ...o, delay: i * step }));
+  const SFX = {
+    sakura: () => tone(1320, 0.07, { type: 'triangle', vol: 0.06, slide: 1.4 }),
+    yuki: () => tone(1900, 0.12, { vol: 0.06, slide: 0.6 }),
+    homura: () => tone(320, 0.14, { type: 'triangle', vol: 0.1, slide: 0.5 }),
+    boom: () => noise(0.32, { vol: 0.22, freq: 900 }),
+    rai: () => { noise(0.12, { vol: 0.1, freq: 6000 }); tone(220, 0.1, { type: 'sawtooth', vol: 0.04, slide: 2 }); },
+    coin: () => { tone(988, 0.06, { type: 'square', vol: 0.035 }); tone(1319, 0.11, { type: 'square', vol: 0.035, delay: 0.06 }); },
+    leak: () => tone(240, 0.35, { type: 'sawtooth', vol: 0.1, slide: 0.45 }),
+    build: () => { tone(523, 0.08, { type: 'triangle', vol: 0.14 }); tone(784, 0.14, { type: 'triangle', vol: 0.14, delay: 0.07 }); },
+    upgrade: () => arp([523, 659, 784, 1047], 0.06, { type: 'triangle', vol: 0.12, dur: 0.12 }),
+    sell: () => { tone(784, 0.08, { type: 'square', vol: 0.05 }); tone(523, 0.12, { type: 'square', vol: 0.05, delay: 0.07 }); },
+    wave: () => arp([392, 523, 659, 784], 0.08, { type: 'triangle', vol: 0.12 }),
+    boss: () => arp([196, 185, 175, 165], 0.22, { type: 'sawtooth', vol: 0.08, dur: 0.3 }),
+    clear: () => arp([659, 784, 988, 1319], 0.07, { type: 'triangle', vol: 0.11 }),
+    win: () => arp([523, 659, 784, 1047, 784, 1047, 1319], 0.12, { type: 'triangle', vol: 0.13, dur: 0.25 }),
+    lose: () => arp([392, 349, 311, 262], 0.22, { type: 'triangle', vol: 0.12, dur: 0.4 }),
+    click: () => tone(880, 0.05, { vol: 0.07 }),
+    error: () => tone(190, 0.13, { type: 'square', vol: 0.05 }),
+  };
+  return {
+    init,
+    play(name) {
+      if (!enabled || !ac || G.silent) return;
+      const now = performance.now();
+      if (last[name] && now - last[name] < 55) return;
+      last[name] = now;
+      try { SFX[name](); } catch (e) { /* audio is optional */ }
+    },
+    toggle() { enabled = !enabled; return enabled; },
+    get enabled() { return enabled; },
+  };
+})();
+
+/* =====================================================================
+   Helpers
+   ===================================================================== */
+const rnd = (a, b) => a + Math.random() * (b - a);
+const easeOut = k => 1 - (1 - k) * (1 - k);
+const easeBack = k => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(k - 1, 3) + c1 * Math.pow(k - 1, 2); };
+function lerpAngle(a, b, t) { const d = ((b - a + Math.PI) % TAU + TAU) % TAU - Math.PI; return a + d * t; }
+function mulberry32(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+
+function el(c, x, y, rx, ry, rot = 0) { c.beginPath(); c.ellipse(x, y, Math.max(0.01, rx), Math.max(0.01, ry), rot, 0, TAU); }
+function circ(c, x, y, r) { c.beginPath(); c.arc(x, y, Math.max(0.01, r), 0, TAU); }
+function rr(c, x, y, w, h, r) {
+  c.beginPath(); c.moveTo(x + r, y);
+  c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r);
+  c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+}
+function starPath(c, x, y, r1, r2, n, rot = 0) {
+  c.beginPath();
+  for (let i = 0; i < n * 2; i++) { const r = i % 2 ? r2 : r1, a = rot + i * Math.PI / n - Math.PI / 2; c.lineTo(x + Math.cos(a) * r, y + Math.sin(a) * r); }
+  c.closePath();
+}
+function petalPath(c, s) {
+  c.beginPath(); c.moveTo(0, s);
+  c.bezierCurveTo(s * 1.1, s * 0.3, s * 0.7, -s * 0.9, s * 0.24, -s);
+  c.lineTo(0, -s * 0.7); c.lineTo(-s * 0.24, -s);
+  c.bezierCurveTo(-s * 0.7, -s * 0.9, -s * 1.1, s * 0.3, 0, s);
+  c.closePath();
+}
+function diamond(c, x, y, s) { c.beginPath(); c.moveTo(x, y - s); c.lineTo(x + s * 0.75, y); c.lineTo(x, y + s); c.lineTo(x - s * 0.75, y); c.closePath(); }
+function bow(c, x, y, s, col) {
+  c.fillStyle = col; c.strokeStyle = OUT; c.lineWidth = 1.2;
+  for (const k of [-1, 1]) {
+    c.beginPath(); c.moveTo(x, y);
+    c.quadraticCurveTo(x + k * s * 1.7, y - s * 1.4, x + k * s * 1.5, y);
+    c.quadraticCurveTo(x + k * s * 1.7, y + s * 1.2, x, y);
+    c.fill(); c.stroke();
+  }
+  circ(c, x, y, s * 0.42); c.fill(); c.stroke();
+}
+function sakuraFlower(c, x, y, s, col) {
+  c.save(); c.translate(x, y); c.fillStyle = col; c.strokeStyle = OUT; c.lineWidth = 0.8;
+  for (let i = 0; i < 5; i++) { c.save(); c.rotate(i * TAU / 5); c.translate(0, -s * 0.55); petalPath(c, s * 0.5); c.fill(); c.stroke(); c.restore(); }
+  c.fillStyle = '#ffd34d'; circ(c, 0, 0, s * 0.22); c.fill();
+  c.restore();
+}
+function snowflake(c, x, y, s, col, w = 1.2) {
+  c.save(); c.translate(x, y); c.strokeStyle = col; c.lineWidth = w; c.lineCap = 'round';
+  for (let i = 0; i < 6; i++) {
+    c.rotate(TAU / 6); c.beginPath(); c.moveTo(0, 0); c.lineTo(0, -s);
+    c.moveTo(0, -s * 0.55); c.lineTo(s * 0.3, -s * 0.8); c.moveTo(0, -s * 0.55); c.lineTo(-s * 0.3, -s * 0.8); c.stroke();
+  }
+  c.restore();
+}
+
+/* =====================================================================
+   Character art: magical girls
+   ===================================================================== */
+function drawGirl(c, type, lvl, aim, t, o = {}) {
+  const d = TOWERS[type];
+  const fired = o.fired || 0, mood = o.mood || 'normal', seed = o.seed || 0;
+  const ax = Math.cos(aim), ay = Math.sin(aim);
+
+  // shadow + pedestal
+  c.fillStyle = 'rgba(74,55,99,.22)'; el(c, 0, 22, 23, 7); c.fill();
+  c.lineWidth = 1.5; c.strokeStyle = OUT;
+  c.fillStyle = d.base2; el(c, 0, 18, 21, 8); c.fill(); c.stroke();
+  c.fillStyle = d.base; el(c, 0, 14.5, 21, 8); c.fill();
+  c.strokeStyle = lvl >= 2 ? '#e3a21f' : OUT; c.lineWidth = lvl >= 2 ? 2.2 : 1.5; c.stroke();
+  c.save(); c.translate(0, 14.5); c.scale(1, 0.38); c.rotate(t * 0.8 + seed);
+  c.strokeStyle = 'rgba(255,255,255,.8)'; c.lineWidth = 1.6; c.setLineDash([5, 4]); circ(c, 0, 0, 15); c.stroke(); c.setLineDash([]);
+  c.restore();
+  c.fillStyle = '#ffd34d'; c.strokeStyle = OUT; c.lineWidth = 1;
+  for (let i = 0; i < lvl; i++) { diamond(c, (i - (lvl - 1) / 2) * 8, 21.5, 3.2); c.fill(); c.stroke(); }
+
+  if (lvl >= 3) {
+    const a = 0.3 + 0.12 * Math.sin(t * 4 + seed);
+    const g = c.createRadialGradient(0, -10, 4, 0, -10, 36);
+    g.addColorStop(0, `rgba(${d.glow},${a})`); g.addColorStop(1, `rgba(${d.glow},0)`);
+    c.fillStyle = g; circ(c, 0, -10, 36); c.fill();
+  }
+
+  c.save();
+  c.translate(0, o.still ? 0 : Math.sin(t * 3 + seed) * 1.2);
+  if (lvl >= 3) drawWings(c, t + seed);
+  drawBackHair(c, type, d, t + seed);
+  const wandBehind = ay < -0.3;
+  if (wandBehind) drawWand(c, d, ax, ay, fired);
+
+  // dress
+  c.fillStyle = d.dress; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(-6, -2); c.lineTo(6, -2); c.lineTo(11.5, 12); c.quadraticCurveTo(0, 15.5, -11.5, 12); c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = d.trim; c.lineWidth = 2.2;
+  c.beginPath(); c.moveTo(-10.4, 10.2); c.quadraticCurveTo(0, 13.6, 10.4, 10.2); c.stroke();
+  if (type === 'rai') { c.fillStyle = d.trim; c.beginPath(); c.moveTo(-9, 6); c.lineTo(9, 6); c.lineTo(11.5, 12); c.quadraticCurveTo(0, 15.5, -11.5, 12); c.closePath(); c.fill(); c.strokeStyle = OUT; c.lineWidth = 1.5; c.stroke(); }
+  bow(c, 0, 0.5, 3, type === 'homura' ? '#ffcf5a' : d.trim);
+  // left hand
+  c.fillStyle = SKIN; c.strokeStyle = OUT; c.lineWidth = 1.2; circ(c, -8.5, 5.5, 2.4); c.fill(); c.stroke();
+
+  // head
+  c.fillStyle = SKIN; c.lineWidth = 1.5; circ(c, 0, -14, 12.5); c.fill(); c.stroke();
+  drawFace(c, d, ax, ay, t, fired, mood, seed);
+  drawBangs(c, d);
+  drawAccessory(c, type, d, t + seed, lvl);
+  if (!wandBehind) drawWand(c, d, ax, ay, fired);
+  c.restore();
+}
+
+function drawWings(c, t) {
+  const f = Math.sin(t * 5) * 0.15;
+  for (const s of [-1, 1]) {
+    c.save(); c.translate(s * 4, -1); c.scale(s, 1); c.rotate(-0.15 - f);
+    c.fillStyle = 'rgba(255,255,255,.96)'; c.strokeStyle = OUT; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(0, 0);
+    c.bezierCurveTo(8, -17, 22, -20, 25, -11);
+    c.bezierCurveTo(21, -9, 23, -5, 19, -3);
+    c.bezierCurveTo(17, 0, 14, 2, 10, 1.5);
+    c.bezierCurveTo(6, 4, 2, 3, 0, 0);
+    c.fill(); c.stroke();
+    c.strokeStyle = 'rgba(160,140,200,.6)'; c.lineWidth = 1;
+    c.beginPath(); c.moveTo(6, -4); c.quadraticCurveTo(13, -9, 20, -9); c.moveTo(6, -1); c.quadraticCurveTo(12, -3, 17, -3); c.stroke();
+    c.restore();
+  }
+}
+
+function drawBackHair(c, type, d, t) {
+  c.fillStyle = d.hair; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  const sway = Math.sin(t * 2.6) * 0.08;
+  if (type === 'sakura') {
+    for (const s of [-1, 1]) {
+      c.save(); c.translate(s * 11, -20); c.rotate(-s * (0.25 + sway));
+      c.beginPath(); c.moveTo(0, 0);
+      c.bezierCurveTo(s * 11, 3, s * 10, 17, s * 4, 25);
+      c.bezierCurveTo(s * 2, 17, -s * 2, 8, 0, 0);
+      c.fill(); c.stroke();
+      c.restore();
+    }
+  } else if (type === 'yuki') {
+    c.beginPath(); c.arc(0, -14, 14.6, Math.PI, 0); c.lineTo(15, 4);
+    c.quadraticCurveTo(12, 9, 9, 4); c.quadraticCurveTo(6, 9, 3, 5); c.lineTo(-3, 5);
+    c.quadraticCurveTo(-6, 9, -9, 4); c.quadraticCurveTo(-12, 9, -15, 4); c.closePath();
+    c.fill(); c.stroke();
+  } else if (type === 'homura') {
+    c.beginPath(); c.arc(0, -14, 14.6, Math.PI, 0);
+    c.quadraticCurveTo(18, -5, 15, -1); c.quadraticCurveTo(12, 2, 11, -3);
+    c.lineTo(-11, -3); c.quadraticCurveTo(-12, 2, -15, -1); c.quadraticCurveTo(-18, -5, -14.6, -14);
+    c.closePath(); c.fill(); c.stroke();
+  } else if (type === 'rai') {
+    c.save(); c.translate(9, -24); c.rotate(0.6 + sway * 2);
+    c.beginPath(); c.moveTo(0, 0);
+    c.bezierCurveTo(9, -2, 13, 10, 9, 24); c.bezierCurveTo(5, 16, -2, 8, 0, 0);
+    c.fill(); c.stroke(); c.restore();
+    for (const s of [-1, 1]) { // fox ears
+      c.save(); c.translate(s * 8.5, -24); c.rotate(s * 0.35);
+      c.fillStyle = d.hair; c.beginPath(); c.moveTo(-5, 2); c.lineTo(0, -10); c.lineTo(5, 2); c.closePath(); c.fill(); c.stroke();
+      c.fillStyle = '#ffb3c8'; c.beginPath(); c.moveTo(-2.6, 1); c.lineTo(0, -5.5); c.lineTo(2.6, 1); c.closePath(); c.fill();
+      c.restore();
+    }
+    c.fillStyle = d.hair;
+  }
+  circ(c, 0, -14, 14.4); c.fill(); c.stroke();
+}
+
+function drawFace(c, d, ax, ay, t, fired, mood, seed) {
+  const blink = mood === 'normal' && ((t + seed * 1.7) % 4.2) < 0.13;
+  const ex = ax * 0.9, ey = ay * 0.6;
+  for (const s of [-1, 1]) {
+    const x = s * 4.9 + ex, y = -10.5 + ey;
+    if (blink || mood === 'happy') {
+      c.strokeStyle = OUT; c.lineWidth = 1.7; c.lineCap = 'round'; c.beginPath();
+      if (mood === 'happy') { c.moveTo(x - 2.8, y + 1); c.quadraticCurveTo(x, y - 2.8, x + 2.8, y + 1); }
+      else { c.moveTo(x - 2.8, y); c.quadraticCurveTo(x, y + 1.8, x + 2.8, y); }
+      c.stroke(); c.lineCap = 'butt';
+      continue;
+    }
+    c.fillStyle = '#fff'; el(c, x, y, 3.1, 3.9); c.fill();
+    const g = c.createLinearGradient(0, y - 3.6, 0, y + 3.6);
+    g.addColorStop(0, d.eye); g.addColorStop(1, d.eye2);
+    c.fillStyle = g; el(c, x + ex * 0.3, y + 0.3, 2.5, 3.5); c.fill();
+    c.fillStyle = '#2b1d3a'; el(c, x + ex * 0.4, y + 0.3, 1.2, 1.8); c.fill();
+    c.fillStyle = '#fff'; circ(c, x - 0.9, y - 1.4, 1.1); c.fill(); circ(c, x + 1, y + 1.7, 0.55); c.fill();
+    c.strokeStyle = OUT; c.lineWidth = 1.8;
+    c.beginPath(); c.ellipse(x, y, 3.4, 4.1, 0, Math.PI * 1.1, Math.PI * 1.9); c.stroke();
+    c.beginPath(); c.moveTo(x + s * 2.9, y - 2.4); c.lineTo(x + s * 4.3, y - 3.4); c.stroke();
+    if (mood === 'sad') {
+      c.fillStyle = 'rgba(120,200,255,.9)';
+      const ty = y + 4 + ((t * 9 + s) % 6);
+      c.beginPath(); c.moveTo(x + s * 2, ty - 2.2); c.quadraticCurveTo(x + s * 3.4, ty + 0.6, x + s * 2, ty + 1.2); c.quadraticCurveTo(x + s * 0.6, ty + 0.6, x + s * 2, ty - 2.2); c.fill();
+    }
+  }
+  c.fillStyle = 'rgba(255,120,150,.45)';
+  el(c, -7.6, -6.4, 2.6, 1.3); c.fill(); el(c, 7.6, -6.4, 2.6, 1.3); c.fill();
+  c.strokeStyle = OUT; c.lineWidth = 1.2;
+  if (fired > 0 || mood === 'happy') {
+    c.fillStyle = '#d4566f'; el(c, ex * 0.5, -4.4, 1.5, 1.4); c.fill();
+  } else if (mood === 'sad') {
+    c.beginPath(); c.arc(ex * 0.5, -3, 1.8, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+  } else {
+    c.beginPath(); c.arc(ex * 0.5, -5.6, 1.7, Math.PI * 0.2, Math.PI * 0.8); c.stroke();
+  }
+}
+
+function drawBangs(c, d) {
+  c.fillStyle = d.hair; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  c.beginPath();
+  c.arc(0, -14, 13.8, Math.PI * 0.96, Math.PI * 2.04);
+  c.lineTo(12.6, -9); c.lineTo(10, -15); c.lineTo(7.4, -11.5); c.lineTo(5, -17.5); c.lineTo(1.8, -13);
+  c.lineTo(-1.2, -17.8); c.lineTo(-4.4, -13); c.lineTo(-7.4, -16.8); c.lineTo(-10, -11.4); c.lineTo(-11.6, -14.5); c.lineTo(-12.8, -9);
+  c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.6)'; c.lineWidth = 1.8; c.lineCap = 'round';
+  c.beginPath(); c.arc(0, -15, 10, Math.PI * 1.18, Math.PI * 1.42); c.stroke();
+  c.lineCap = 'butt';
+}
+
+function drawAccessory(c, type, d, t, lvl) {
+  if (type === 'sakura') {
+    bow(c, 8.5, -26, 4.6, '#ff4f93');
+    sakuraFlower(c, -9.5, -22.5, 4.4, '#fff0f7');
+  } else if (type === 'yuki') {
+    snowflake(c, -9, -23, 4.4, '#ffffff', 2.6);
+    snowflake(c, -9, -23, 4.4, '#4fa3f7', 1.2);
+    if (lvl >= 2) { c.fillStyle = '#bfe8ff'; c.strokeStyle = OUT; c.lineWidth = 1; for (const x of [-4, 0, 4]) { diamond(c, x, -27 - (x === 0 ? 2 : 0), 2.4); c.fill(); c.stroke(); } }
+  } else if (type === 'homura') {
+    const sw = Math.sin(t * 2) * 1.5;
+    c.fillStyle = d.hat; c.strokeStyle = OUT; c.lineWidth = 1.5;
+    el(c, 0, -24.5, 17.5, 4.8, -0.06); c.fill(); c.stroke();
+    c.beginPath(); c.moveTo(-10, -26); c.lineTo(-3, -40); c.quadraticCurveTo(2, -48, 12 + sw, -46);
+    c.quadraticCurveTo(5, -42.5, 4, -38); c.lineTo(10, -26); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = d.trim; c.beginPath(); c.moveTo(-9.6, -27); c.lineTo(9.6, -27); c.lineTo(8.6, -30.5); c.lineTo(-8.4, -30.5); c.closePath(); c.fill(); c.stroke();
+    c.fillStyle = '#ffd34d'; starPath(c, 0, -34.5, 3.2, 1.4, 5); c.fill(); c.lineWidth = 0.8; c.stroke();
+  } else if (type === 'rai') {
+    bow(c, 10.5, -21, 3.6, d.trim);
+    c.strokeStyle = '#ffd34d'; c.lineWidth = 2; c.lineJoin = 'round';
+    c.beginPath(); c.moveTo(-1, -27.5); c.lineTo(2, -32); c.lineTo(-1.5, -33); c.lineTo(1.5, -38); c.stroke();
+    c.lineJoin = 'miter';
+  }
+  if (lvl >= 2 && type !== 'homura' && type !== 'yuki') {
+    c.fillStyle = '#ffd34d'; c.strokeStyle = OUT; c.lineWidth = 0.9;
+    starPath(c, -12, -17, 2.8, 1.2, 5, 0.2); c.fill(); c.stroke();
+  }
+}
+
+function drawWand(c, d, ax, ay, fired) {
+  const hx = 8.5, hy = 5, len = 17;
+  const ex = hx + ax * len, ey = hy + ay * len;
+  c.lineCap = 'round';
+  c.strokeStyle = OUT; c.lineWidth = 4; c.beginPath(); c.moveTo(hx - ax * 3, hy - ay * 3); c.lineTo(ex, ey); c.stroke();
+  c.strokeStyle = d.wand; c.lineWidth = 2; c.stroke();
+  c.lineCap = 'butt';
+  const gr = 9 + fired * 30;
+  const g = c.createRadialGradient(ex, ey, 1, ex, ey, gr);
+  g.addColorStop(0, `rgba(${d.glow},.75)`); g.addColorStop(1, `rgba(${d.glow},0)`);
+  c.fillStyle = g; circ(c, ex, ey, gr); c.fill();
+  c.fillStyle = d.orb; c.strokeStyle = OUT; c.lineWidth = 1.2;
+  if (d === TOWERS.yuki) { diamond(c, ex, ey, 4.6); } else if (d === TOWERS.sakura) { starPath(c, ex, ey, 5, 2.4, 5, Math.atan2(ay, ax) + Math.PI / 2); } else { circ(c, ex, ey, 3.8); }
+  c.fill(); c.stroke();
+  c.fillStyle = '#fff'; circ(c, ex - 1.1, ey - 1.2, 1.1); c.fill();
+  c.fillStyle = SKIN; c.strokeStyle = OUT; c.lineWidth = 1.2; circ(c, hx, hy, 2.5); c.fill(); c.stroke();
+}
+
+/* =====================================================================
+   Enemy art
+   ===================================================================== */
+const SLIME_COLORS = { slime: ['#46c987', '#d6fbe6'], mini: ['#5ec4f2', '#e4f7ff'], fat: ['#b48af7', '#f0e4ff'] };
+
+function drawSlime(c, r, kind, t, dir, flash) {
+  const [col, hi] = SLIME_COLORS[kind];
+  const sq = Math.sin(t * 9) * 0.07;
+  c.save(); c.scale(1 + sq, 1 - sq);
+  c.beginPath(); c.moveTo(-r, 0);
+  c.bezierCurveTo(-r * 1.08, -r * 1.6, r * 1.08, -r * 1.6, r, 0);
+  c.quadraticCurveTo(0, r * 0.3, -r, 0); c.closePath();
+  if (flash) c.fillStyle = '#fff';
+  else { const g = c.createRadialGradient(-r * 0.35, -r * 0.85, r * 0.1, 0, -r * 0.4, r * 1.25); g.addColorStop(0, hi); g.addColorStop(1, col); c.fillStyle = g; }
+  c.fill(); c.lineWidth = 1.6; c.strokeStyle = OUT; c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.75)'; el(c, -r * 0.45, -r * 0.8, r * 0.24, r * 0.13, -0.5); c.fill();
+  const fx = dir * r * 0.14, fy = -r * 0.48;
+  c.fillStyle = OUT;
+  for (const s of [-1, 1]) {
+    el(c, fx + s * r * 0.3, fy, r * 0.1, r * 0.16); c.fill();
+  }
+  c.fillStyle = '#fff';
+  for (const s of [-1, 1]) { circ(c, fx + s * r * 0.3 - r * 0.03, fy - r * 0.06, r * 0.04); c.fill(); }
+  c.lineWidth = 1.3;
+  if (kind === 'fat') {
+    c.beginPath();
+    for (const s of [-1, 1]) { c.moveTo(fx + s * r * 0.45, fy - r * 0.32); c.lineTo(fx + s * r * 0.17, fy - r * 0.2); }
+    c.stroke();
+    c.beginPath(); c.arc(fx, fy + r * 0.32, r * 0.13, Math.PI * 1.15, Math.PI * 1.85); c.stroke();
+    c.fillStyle = '#7ad36f'; c.beginPath(); c.moveTo(0, -r * 1.18); c.quadraticCurveTo(r * 0.45, -r * 1.6, r * 0.6, -r * 1.3); c.quadraticCurveTo(r * 0.3, -r * 1.1, 0, -r * 1.18); c.fill(); c.lineWidth = 1; c.stroke();
+  } else {
+    c.beginPath(); c.arc(fx, fy + r * 0.14, r * 0.13, Math.PI * 0.15, Math.PI * 0.85); c.stroke();
+  }
+  c.fillStyle = 'rgba(255,110,150,.4)';
+  for (const s of [-1, 1]) { el(c, fx + s * r * 0.55, fy + r * 0.2, r * 0.13, r * 0.07); c.fill(); }
+  c.restore();
+}
+
+function drawGhost(c, r, t, dir, flash) {
+  c.save(); c.translate(0, -r * 1.0 + Math.sin(t * 4) * 3);
+  c.beginPath(); c.arc(0, 0, r, Math.PI, 0); c.lineTo(r, r * 0.9);
+  const n = 4, w = 2 * r / n;
+  for (let i = 0; i < n; i++) { const x0 = r - i * w, ph = Math.sin(t * 8 + i) * r * 0.12; c.quadraticCurveTo(x0 - w / 2, r * 1.3 + ph, x0 - w, r * 0.9); }
+  c.closePath();
+  if (flash) c.fillStyle = '#fff';
+  else { const g = c.createLinearGradient(0, -r, 0, r * 1.2); g.addColorStop(0, '#ffffff'); g.addColorStop(1, '#ddd2ff'); c.fillStyle = g; }
+  c.globalAlpha = 0.95; c.fill(); c.globalAlpha = 1;
+  c.strokeStyle = OUT; c.lineWidth = 1.6; c.stroke();
+  // little arms
+  c.fillStyle = '#f4f0ff';
+  for (const s of [-1, 1]) { el(c, s * r * 1.02, r * 0.25, r * 0.22, r * 0.14, s * 0.5); c.fill(); c.lineWidth = 1.2; c.stroke(); }
+  const fx = dir * r * 0.18;
+  c.fillStyle = OUT;
+  for (const s of [-1, 1]) { el(c, fx + s * r * 0.33, -r * 0.08, r * 0.12, r * 0.18); c.fill(); }
+  c.fillStyle = '#fff';
+  for (const s of [-1, 1]) { circ(c, fx + s * r * 0.33 - r * 0.04, -r * 0.15, r * 0.05); c.fill(); }
+  c.fillStyle = '#ff7a9c'; el(c, fx, r * 0.32, r * 0.12, r * 0.15); c.fill();
+  c.fillStyle = 'rgba(255,110,150,.4)';
+  for (const s of [-1, 1]) { el(c, fx + s * r * 0.58, r * 0.16, r * 0.14, r * 0.07); c.fill(); }
+  c.restore();
+}
+
+function drawKnight(c, r, t, dir, flash) {
+  const b = Math.abs(Math.sin(t * 6)) * 2;
+  c.save(); c.translate(0, -b);
+  c.fillStyle = OUT;
+  el(c, -r * 0.45, -1 + b, r * 0.24, r * 0.14); c.fill(); el(c, r * 0.45, -1 + b, r * 0.24, r * 0.14); c.fill();
+  if (flash) c.fillStyle = '#fff';
+  else { const g = c.createRadialGradient(-r * 0.35, -r, r * 0.1, 0, -r * 0.7, r * 1.2); g.addColorStop(0, '#ffc46b'); g.addColorStop(1, '#ee7a1f'); c.fillStyle = g; }
+  c.strokeStyle = OUT; c.lineWidth = 1.6;
+  el(c, 0, -r * 0.72, r * 1.05, r * 0.8); c.fill(); c.stroke();
+  c.strokeStyle = 'rgba(170,70,10,.45)'; c.lineWidth = 1.3;
+  el(c, 0, -r * 0.72, r * 0.45, r * 0.78); c.stroke();
+  // carved face
+  const fx = dir * r * 0.12;
+  c.fillStyle = '#ffe36b'; c.strokeStyle = OUT; c.lineWidth = 1;
+  for (const s of [-1, 1]) {
+    c.beginPath(); c.moveTo(fx + s * r * 0.5, -r * 0.62); c.lineTo(fx + s * r * 0.18, -r * 0.62); c.lineTo(fx + s * r * 0.34, -r * 0.88); c.closePath(); c.fill(); c.stroke();
+  }
+  c.beginPath(); c.moveTo(fx - r * 0.35, -r * 0.38);
+  c.lineTo(fx - r * 0.18, -r * 0.24); c.lineTo(fx, -r * 0.36); c.lineTo(fx + r * 0.18, -r * 0.24); c.lineTo(fx + r * 0.35, -r * 0.38);
+  c.quadraticCurveTo(fx, -r * 0.1, fx - r * 0.35, -r * 0.38); c.fill(); c.stroke();
+  // helmet
+  c.fillStyle = flash ? '#fff' : '#cfd5e6'; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  c.beginPath(); c.arc(0, -r * 1.32, r * 0.6, Math.PI, 0); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = flash ? '#fff' : '#99a2bf'; rr(c, -r * 0.72, -r * 1.42, r * 1.44, r * 0.2, r * 0.08); c.fill(); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.7)'; el(c, -r * 0.22, -r * 1.58, r * 0.14, r * 0.07, -0.4); c.fill();
+  c.fillStyle = '#ff5d73';
+  c.beginPath(); c.moveTo(0, -r * 1.9); c.quadraticCurveTo(-dir * r * 0.9, -r * 2.25, -dir * r * 1.0, -r * 1.55); c.quadraticCurveTo(-dir * r * 0.5, -r * 1.85, 0, -r * 1.9); c.fill(); c.lineWidth = 1.1; c.stroke();
+  // shield
+  c.save(); c.translate(dir * r * 0.88, -r * 0.5);
+  c.fillStyle = flash ? '#fff' : '#6aa8ff'; c.strokeStyle = OUT; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(-r * 0.32, -r * 0.36); c.lineTo(r * 0.32, -r * 0.36); c.lineTo(r * 0.3, r * 0.05); c.quadraticCurveTo(0, r * 0.45, -r * 0.3, r * 0.05); c.closePath(); c.fill(); c.stroke();
+  c.strokeStyle = '#fff'; c.lineWidth = 1.6; c.beginPath(); c.moveTo(0, -r * 0.26); c.lineTo(0, r * 0.18); c.moveTo(-r * 0.18, -r * 0.08); c.lineTo(r * 0.18, -r * 0.08); c.stroke();
+  c.restore();
+  c.restore();
+}
+
+function drawBoss(c, r, t, dir, flash) {
+  const pulse = 0.35 + 0.12 * Math.sin(t * 3);
+  const ag = c.createRadialGradient(0, -r * 0.6, r * 0.3, 0, -r * 0.6, r * 2);
+  ag.addColorStop(0, `rgba(120,50,190,${pulse})`); ag.addColorStop(1, 'rgba(120,50,190,0)');
+  c.fillStyle = ag; circ(c, 0, -r * 0.6, r * 2); c.fill();
+  const sq = Math.sin(t * 4) * 0.05;
+  c.save(); c.scale(1 + sq, 1 - sq);
+  c.strokeStyle = OUT; c.lineWidth = 2;
+  // horns
+  for (const s of [-1, 1]) {
+    c.fillStyle = flash ? '#fff' : '#fff1d6';
+    c.beginPath(); c.moveTo(s * r * 0.4, -r * 1.05);
+    c.quadraticCurveTo(s * r * 1.15, -r * 1.25, s * r * 0.95, -r * 1.9);
+    c.quadraticCurveTo(s * r * 0.75, -r * 1.4, s * r * 0.12, -r * 1.18); c.closePath(); c.fill(); c.stroke();
+  }
+  c.beginPath(); c.moveTo(-r, 0);
+  c.bezierCurveTo(-r * 1.1, -r * 1.6, r * 1.1, -r * 1.6, r, 0);
+  c.quadraticCurveTo(0, r * 0.3, -r, 0); c.closePath();
+  if (flash) c.fillStyle = '#fff';
+  else { const g = c.createRadialGradient(-r * 0.3, -r * 0.9, r * 0.1, 0, -r * 0.4, r * 1.3); g.addColorStop(0, '#a77be6'); g.addColorStop(1, '#43207a'); c.fillStyle = g; }
+  c.fill(); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.35)'; el(c, -r * 0.45, -r * 0.82, r * 0.22, r * 0.12, -0.5); c.fill();
+  // crown
+  c.fillStyle = '#ffcb47'; c.lineWidth = 1.4;
+  c.beginPath(); c.moveTo(-r * 0.36, -r * 1.12); c.lineTo(-r * 0.4, -r * 1.48); c.lineTo(-r * 0.18, -r * 1.3); c.lineTo(0, -r * 1.56);
+  c.lineTo(r * 0.18, -r * 1.3); c.lineTo(r * 0.4, -r * 1.48); c.lineTo(r * 0.36, -r * 1.12); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#ff5d8f'; circ(c, 0, -r * 1.26, r * 0.07); c.fill();
+  // angry face
+  const fx = dir * r * 0.12, fy = -r * 0.55;
+  for (const s of [-1, 1]) {
+    c.fillStyle = '#ffe9f1'; el(c, fx + s * r * 0.32, fy, r * 0.17, r * 0.13); c.fill();
+    c.fillStyle = '#ff3355'; el(c, fx + s * r * 0.3, fy + r * 0.02, r * 0.08, r * 0.1); c.fill();
+    c.strokeStyle = OUT; c.lineWidth = 2.4; c.beginPath(); c.moveTo(fx + s * r * 0.55, fy - r * 0.25); c.lineTo(fx + s * r * 0.12, fy - r * 0.1); c.stroke();
+  }
+  c.strokeStyle = OUT; c.lineWidth = 1.8;
+  c.beginPath(); c.moveTo(fx - r * 0.3, fy + r * 0.32); c.quadraticCurveTo(fx, fy + r * 0.48, fx + r * 0.3, fy + r * 0.32); c.stroke();
+  c.fillStyle = '#fff'; c.lineWidth = 1;
+  for (const s of [-1, 1]) { c.beginPath(); c.moveTo(fx + s * r * 0.2, fy + r * 0.37); c.lineTo(fx + s * r * 0.12, fy + r * 0.52); c.lineTo(fx + s * r * 0.06, fy + r * 0.4); c.closePath(); c.fill(); c.stroke(); }
+  c.restore();
+}
+
+function drawEnemyBody(c, type, r, t, dir, flash) {
+  if (type === 'ghost') drawGhost(c, r, t, dir, flash);
+  else if (type === 'knight') drawKnight(c, r, t, dir, flash);
+  else if (type === 'boss') drawBoss(c, r, t, dir, flash);
+  else drawSlime(c, r, type, t, dir, flash);
+}
+
+/* =====================================================================
+   Scenery
+   ===================================================================== */
+function drawTree(c, x, y) {
+  c.fillStyle = 'rgba(74,55,99,.2)'; el(c, x, y + 22, 24, 8); c.fill();
+  c.fillStyle = '#a8755a'; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(x - 5, y + 22); c.quadraticCurveTo(x - 3, y + 6, x - 6, y - 4); c.lineTo(x + 3, y - 4); c.quadraticCurveTo(x + 2, y + 8, x + 5, y + 22); c.closePath(); c.fill(); c.stroke();
+  const blobs = [[-13, -8, 13], [12, -9, 13], [0, -20, 14], [-4, -4, 12], [9, 2, 10], [-12, 4, 9]];
+  c.fillStyle = '#e88bb5';
+  for (const [bx, by, br] of blobs) { circ(c, x + bx, y + by, br + 1.6); c.fill(); }
+  const pinks = ['#ffc2dc', '#ffb0d2', '#ffd3e6', '#ffbcd8', '#ffc8df', '#ffb6d4'];
+  blobs.forEach(([bx, by, br], i) => { c.fillStyle = pinks[i]; circ(c, x + bx, y + by, br); c.fill(); });
+  c.fillStyle = 'rgba(255,255,255,.55)';
+  circ(c, x - 5, y - 24, 4); c.fill(); circ(c, x - 16, y - 12, 3); c.fill();
+  c.fillStyle = '#ff8fbf';
+  for (const [px, py] of [[-8, -12], [6, -16], [14, -3], [-2, 2], [-15, 0], [4, -26]]) { circ(c, x + px, y + py, 1.4); c.fill(); }
+}
+
+function drawRock(c, x, y) {
+  c.fillStyle = 'rgba(74,55,99,.2)'; el(c, x, y + 16, 22, 7); c.fill();
+  c.fillStyle = '#c9c2dd'; c.strokeStyle = OUT; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(x - 20, y + 14); c.quadraticCurveTo(x - 22, y - 2, x - 10, y - 9); c.quadraticCurveTo(x + 2, y - 18, x + 14, y - 6);
+  c.quadraticCurveTo(x + 22, y + 2, x + 19, y + 14); c.closePath(); c.fill(); c.stroke();
+  c.fillStyle = '#e3def0'; el(c, x - 5, y - 6, 8, 4, -0.3); c.fill();
+  c.fillStyle = '#8fd48a'; el(c, x + 9, y + 11, 7, 3); c.fill();
+}
+
+let bgCanvas = null;
+function buildBackground(scale) {
+  bgCanvas = document.createElement('canvas');
+  bgCanvas.width = Math.round(W * scale); bgCanvas.height = Math.round(H * scale);
+  const c = bgCanvas.getContext('2d');
+  c.scale(scale, scale);
+  const rng = mulberry32(20241014);
+  const g = c.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, '#c9efb3'); g.addColorStop(1, '#b0e19b');
+  c.fillStyle = g; c.fillRect(0, 0, W, H);
+  for (let r = 0; r < ROWS; r++) for (let col = 0; col < COLS; col++) {
+    if ((r + col) % 2 === 0) { c.fillStyle = 'rgba(255,255,255,.11)'; c.fillRect(col * TILE, r * TILE, TILE, TILE); }
+  }
+  const onRoad = (x, y) => { const cc = Math.floor(x / TILE), rr2 = Math.floor(y / TILE); return cc >= 0 && rr2 >= 0 && cc < COLS && rr2 < ROWS && grid[rr2][cc] !== GRASS; };
+  c.strokeStyle = 'rgba(70,140,70,.4)'; c.lineWidth = 1.4; c.lineCap = 'round';
+  for (let i = 0; i < 170; i++) {
+    const x = rng() * W, y = rng() * H; if (onRoad(x, y)) continue;
+    c.beginPath(); c.moveTo(x - 3, y - 4); c.lineTo(x - 1, y + 1); c.moveTo(x, y - 6); c.lineTo(x, y + 1); c.moveTo(x + 3, y - 4); c.lineTo(x + 1, y + 1); c.stroke();
+  }
+  const flowerCols = ['#ffffff', '#ffd1e6', '#fff2a8', '#d9ccff'];
+  for (let i = 0; i < 70; i++) {
+    const x = rng() * W, y = rng() * H; if (onRoad(x, y)) continue;
+    c.fillStyle = flowerCols[Math.floor(rng() * flowerCols.length)];
+    for (let k = 0; k < 5; k++) { const a = k * TAU / 5; circ(c, x + Math.cos(a) * 2.4, y + Math.sin(a) * 2.4, 1.8); c.fill(); }
+    c.fillStyle = '#ffc93c'; circ(c, x, y, 1.3); c.fill();
+  }
+  // road
+  c.lineJoin = 'round'; c.lineCap = 'round';
+  const road = () => { c.beginPath(); c.moveTo(PATH[0].x - 40, PATH[0].y); for (const p of PATH) c.lineTo(p.x, p.y); };
+  road(); c.strokeStyle = OUT; c.lineWidth = 58; c.globalAlpha = 0.18; c.stroke(); c.globalAlpha = 1;
+  road(); c.strokeStyle = '#e5c590'; c.lineWidth = 54; c.stroke();
+  road(); c.strokeStyle = '#f8e7c6'; c.lineWidth = 44; c.stroke();
+  road(); c.strokeStyle = 'rgba(255,250,236,.7)'; c.lineWidth = 16; c.setLineDash([2, 22]); c.stroke(); c.setLineDash([]);
+  for (let i = 0; i < 90; i++) {
+    const p = posAt(rng() * PATH_LEN);
+    c.fillStyle = rng() < 0.5 ? '#e8d1a6' : '#efdcb8';
+    el(c, p.x + (rng() - 0.5) * 34, p.y + (rng() - 0.5) * 34, 2.6 + rng() * 2, 1.8 + rng() * 1.4); c.fill();
+  }
+  for (const [col, r] of ROCKS) drawRock(c, (col + 0.5) * TILE, (r + 0.5) * TILE);
+  for (const [col, r] of TREES) drawTree(c, (col + 0.5) * TILE, (r + 0.5) * TILE);
+  const v = c.createRadialGradient(W / 2, H / 2, H * 0.45, W / 2, H / 2, W * 0.65);
+  v.addColorStop(0, 'rgba(74,55,99,0)'); v.addColorStop(1, 'rgba(74,55,99,.16)');
+  c.fillStyle = v; c.fillRect(0, 0, W, H);
+}
+
+function drawPortal(c, t) {
+  c.save(); c.translate(PORTAL.x, PORTAL.y);
+  const g = c.createRadialGradient(0, 0, 4, 0, 0, 56);
+  g.addColorStop(0, 'rgba(150,80,220,.55)'); g.addColorStop(1, 'rgba(150,80,220,0)');
+  c.fillStyle = g; circ(c, 0, 0, 56); c.fill();
+  c.scale(0.6, 1);
+  const g2 = c.createRadialGradient(0, 0, 2, 0, 0, 34);
+  g2.addColorStop(0, '#1f0d38'); g2.addColorStop(0.7, '#5b2d96'); g2.addColorStop(1, '#a678ea');
+  c.fillStyle = g2; circ(c, 0, 0, 34); c.fill(); c.strokeStyle = OUT; c.lineWidth = 2.5; c.stroke();
+  c.lineCap = 'round';
+  for (let i = 0; i < 3; i++) {
+    c.save(); c.rotate(t * (1.2 + i * 0.6) + i * 2);
+    c.strokeStyle = `rgba(230,200,255,${0.7 - i * 0.18})`; c.lineWidth = 2.6 - i * 0.6;
+    c.beginPath(); c.arc(0, 0, 26 - i * 7, 0, Math.PI * 1.2); c.stroke();
+    c.restore();
+  }
+  c.restore();
+}
+
+function drawCrystalShape(c, t, hurt, frac) {
+  c.fillStyle = 'rgba(74,55,99,.22)'; el(c, 0, 20, 26, 8); c.fill();
+  c.strokeStyle = OUT; c.lineWidth = 1.6;
+  c.fillStyle = '#ddd2f5'; el(c, 0, 16, 24, 9); c.fill(); c.stroke();
+  c.fillStyle = '#fbf7ff'; el(c, 0, 12, 24, 9); c.fill(); c.stroke();
+  c.save(); c.translate(0, 12); c.scale(1, 0.38); c.rotate(-t * 0.7);
+  c.strokeStyle = 'rgba(255,111,174,.85)'; c.lineWidth = 1.8; c.setLineDash([4, 5]); circ(c, 0, 0, 17); c.stroke(); c.setLineDash([]);
+  c.restore();
+  const glowCol = hurt > 0 ? '255,70,100' : '255,140,200';
+  const g = c.createRadialGradient(0, -20, 4, 0, -20, 44);
+  g.addColorStop(0, `rgba(${glowCol},${0.55 + hurt * 0.4})`); g.addColorStop(1, `rgba(${glowCol},0)`);
+  c.fillStyle = g; circ(c, 0, -20, 44); c.fill();
+  c.save(); c.translate(0, -22 + Math.sin(t * 2) * 3);
+  c.beginPath(); c.moveTo(0, -24); c.lineTo(13, -5); c.lineTo(0, 17); c.lineTo(-13, -5); c.closePath();
+  const cg = c.createLinearGradient(-12, -24, 12, 17);
+  cg.addColorStop(0, '#ffffff'); cg.addColorStop(0.45, hurt > 0 ? '#ff8aa0' : '#ffa6d0'); cg.addColorStop(1, '#e2448c');
+  c.fillStyle = cg; c.fill(); c.strokeStyle = OUT; c.lineWidth = 2; c.stroke();
+  c.strokeStyle = 'rgba(255,255,255,.7)'; c.lineWidth = 1.2;
+  c.beginPath(); c.moveTo(0, -24); c.lineTo(-4, -5); c.lineTo(0, 17); c.moveTo(-13, -5); c.lineTo(13, -5); c.stroke();
+  c.fillStyle = 'rgba(255,255,255,.85)'; c.beginPath(); c.moveTo(-3, -18); c.lineTo(-8, -6); c.lineTo(-5, -6); c.closePath(); c.fill();
+  if (frac < 0.5) {
+    c.strokeStyle = OUT; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(4, -14); c.lineTo(1, -8); c.lineTo(5, -3); c.lineTo(2, 4);
+    if (frac < 0.25) { c.moveTo(-6, -2); c.lineTo(-2, 2); c.lineTo(-5, 8); }
+    c.stroke();
+  }
+  c.restore();
+  c.fillStyle = '#fff';
+  for (let i = 0; i < 3; i++) {
+    const a = t * 1.5 + i * TAU / 3;
+    starPath(c, Math.cos(a) * 22, -22 + Math.sin(a) * 8, 3, 1.2, 4); c.fill();
+  }
+}
+
+/* =====================================================================
+   Game flow
+   ===================================================================== */
+function resetGame(diffKey) {
+  const D = DIFFS[diffKey];
+  Object.assign(G, {
+    state: 'playing', paused: false, diff: diffKey,
+    lives: D.lives, maxLives: D.lives, gold: D.gold, wave: 0, phase: 'build', countdown: 0, waveTime: 0,
+    enemies: [], towers: [], projectiles: [], effects: [], particles: [], texts: [], spawnQueue: [],
+    selected: null, buildType: null, hover: null,
+    time: 0, idSeq: 1, shake: 0, leakFlash: 0, crystalHurt: 0, endTimer: 0, win: false,
+    stats: { kills: 0, goldEarned: 0, built: 0, leaked: 0 },
+  });
+}
+
+function startWave(auto) {
+  if (G.state !== 'playing' || G.phase !== 'build' || G.wave >= WAVES.length) return;
+  if (!auto && G.wave > 0 && G.countdown > 0) {
+    const bonus = Math.ceil(G.countdown);
+    G.gold += bonus; G.stats.goldEarned += bonus;
+    floatText(CRYSTAL.x - 20, CRYSTAL.y - 60, `+${bonus}`, '#ffbf3c', 20);
+  }
+  G.wave++; G.phase = 'wave'; G.waveTime = 0; G.countdown = 0;
+  const q = []; let t = 0, boss = false;
+  for (const [type, count, interval] of WAVES[G.wave - 1]) {
+    for (let i = 0; i < count; i++) { q.push({ type, t }); t += interval; }
+    t += 1.2;
+    if (type === 'boss') boss = true;
+  }
+  G.spawnQueue = q;
+  const last = G.wave === WAVES.length;
+  banner(last ? '最终波' : `第 ${G.wave} 波`, last ? '撑过这一波就胜利了！' : boss ? '本波有魔王压阵，小心！' : `${q.length} 只魔物正在接近`, '');
+  Sound.play('wave');
+}
+
+function spawnEnemy(type, dist, hpOverride) {
+  const E = ENEMIES[type];
+  const hp = hpOverride || Math.round(E.hp * hpScale(G.wave));
+  const p = posAt(dist);
+  const e = {
+    id: G.idSeq++, type, hp, maxHp: hp, speed: E.speed, armor: E.armor, reward: E.reward, lives: E.lives, r: E.r,
+    dist, x: p.x, y: p.y, dir: 1, slow: 0, slowT: 0, flash: 0, t: Math.random() * 10, alive: true,
+  };
+  G.enemies.push(e);
+  if (type === 'boss') {
+    banner('魔王来袭！', '暗影魔王出现了，集中火力！', 'boss');
+    Sound.play('boss'); G.shake = 8;
+  }
+  return e;
+}
+
+function hurt(e, dmg, tw, pierce) {
+  if (!e.alive) return;
+  const real = pierce ? dmg : Math.max(dmg * 0.3, dmg - e.armor);
+  e.hp -= real; e.flash = 0.08;
+  if (tw) tw.dmg += real;
+  if (G.texts.length < 50) floatText(e.x + rnd(-8, 8), e.y - e.r * 1.4 - 6, Math.round(real), tw ? TOWERS[tw.type].num : '#fff', 13, 0.55);
+  if (e.hp <= 0) killEnemy(e, tw);
+}
+
+function killEnemy(e, tw) {
+  e.alive = false;
+  G.gold += e.reward; G.stats.goldEarned += e.reward; G.stats.kills++;
+  if (tw) tw.kills++;
+  const cols = { slime: '#7ee2ac', mini: '#8fd8f7', fat: '#c9a6ff', ghost: '#ffffff', knight: '#ffb347', boss: '#a77be6' };
+  burst(e.x, e.y - e.r * 0.5, cols[e.type], e.type === 'boss' ? 40 : 10, e.type === 'boss' ? 220 : 120);
+  burst(e.x, e.y - e.r * 0.5, '#fff4b0', e.type === 'boss' ? 16 : 4, 90, 'star');
+  floatText(e.x, e.y - e.r - 12, `+${e.reward}`, '#ffbf3c', 16, 0.9);
+  if (e.type === 'fat') {
+    const hp = Math.round(ENEMIES.mini.hp * hpScale(G.wave));
+    for (let i = -1; i <= 1; i++) spawnEnemy('mini', Math.max(0, e.dist + i * 14), hp);
+  }
+  if (e.type === 'boss') {
+    G.effects.push({ kind: 'boom', x: e.x, y: e.y - 10, r: 90, life: 0.6, max: 0.6 });
+    G.shake = 12; Sound.play('boom');
+  }
+  Sound.play('coin');
+}
+
+function leak(e) {
+  e.alive = false;
+  G.lives = Math.max(0, G.lives - e.lives);
+  G.stats.leaked++;
+  G.leakFlash = 0.6; G.crystalHurt = 0.6; G.shake = Math.min(12, 4 + e.lives);
+  floatText(CRYSTAL.x - 10, CRYSTAL.y - 56, `-${e.lives}`, '#ff4d6d', 22, 1.1);
+  burst(CRYSTAL.x, CRYSTAL.y - 20, '#ff8fb8', 12, 140);
+  Sound.play('leak');
+  if (G.lives <= 0) endGame(false);
+}
+
+function waveClear() {
+  const bonus = BAL.clearBase + G.wave * BAL.clearPer;
+  G.gold += bonus; G.stats.goldEarned += bonus;
+  if (G.wave >= WAVES.length) { endGame(true); return; }
+  G.phase = 'build'; G.countdown = BAL.autoDelay;
+  banner(`第 ${G.wave} 波 完成`, `奖励 +${bonus} 金币`, 'clear');
+  Sound.play('clear');
+}
+
+function endGame(win) {
+  if (G.state !== 'playing') return;
+  G.state = 'ending'; G.win = win; G.endTimer = win ? 1.6 : 1.8;
+  G.buildType = null; G.selected = null;
+  if (win) {
+    for (let i = 0; i < 4; i++) burst(rnd(150, W - 150), rnd(100, H - 200), ['#ff8fc4', '#ffd34d', '#8fd3ff', '#c9a6ff'][i], 26, 200, 'petal');
+    Sound.play('win');
+  } else {
+    burst(CRYSTAL.x, CRYSTAL.y - 22, '#ffa6d0', 40, 240, 'star');
+    G.effects.push({ kind: 'ring', x: CRYSTAL.x, y: CRYSTAL.y - 20, r0: 10, r1: 140, w: 10, color: '#ff6fae', life: 0.8, max: 0.8 });
+    G.shake = 14;
+    Sound.play('lose');
+  }
+  saveBest();
+}
+
+/* ---------- towers ---------- */
+const towerAt = (c, r) => G.towers.find(t => t.c === c && t.r === r);
+const canBuild = (c, r) => c >= 0 && r >= 0 && c < COLS && r < ROWS && grid[r][c] === GRASS && !towerAt(c, r);
+
+function placeTower(type, c, r) {
+  const d = TOWERS[type];
+  if (!canBuild(c, r)) { toast(grid[r] && grid[r][c] === ROAD ? '小路上不能召唤哦' : '这里不能召唤'); Sound.play('error'); return null; }
+  if (G.gold < d.cost) { toast('金币不足'); Sound.play('error'); return null; }
+  G.gold -= d.cost;
+  const tw = {
+    isTower: true, id: G.idSeq++, type, level: 1, c, r, x: (c + 0.5) * TILE, y: (r + 0.5) * TILE,
+    cd: 0, aim: Math.PI * 0.25, fired: 0, kills: 0, dmg: 0, spent: d.cost, mode: 'first', seed: Math.random() * 10, born: G.time,
+  };
+  G.towers.push(tw); G.stats.built++;
+  burst(tw.x, tw.y, '#fff6c0', 12, 110, 'star');
+  G.effects.push({ kind: 'ring', x: tw.x, y: tw.y + 12, r0: 6, r1: 36, w: 5, color: '#ffffff', life: 0.4, max: 0.4 });
+  Sound.play('build');
+  return tw;
+}
+
+function upgradeTower(tw) {
+  const N = TOWERS[tw.type].levels[tw.level];
+  if (!N) return false;
+  if (G.gold < N.cost) { toast('金币不足'); Sound.play('error'); return false; }
+  G.gold -= N.cost; tw.spent += N.cost; tw.level++; tw.born = G.time;
+  burst(tw.x, tw.y - 10, `rgb(${TOWERS[tw.type].glow})`, 18, 140, 'star');
+  G.effects.push({ kind: 'ring', x: tw.x, y: tw.y, r0: 8, r1: 46, w: 6, color: '#ffd34d', life: 0.5, max: 0.5 });
+  floatText(tw.x, tw.y - 44, `Lv.${tw.level}!`, '#ffbf3c', 18, 1);
+  Sound.play('upgrade');
+  return true;
+}
+
+function sellTower(tw) {
+  const v = Math.floor(tw.spent * BAL.sellRate);
+  G.gold += v;
+  G.towers.splice(G.towers.indexOf(tw), 1);
+  if (G.selected === tw) G.selected = null;
+  burst(tw.x, tw.y, '#ffd34d', 12, 120);
+  floatText(tw.x, tw.y - 30, `+${v}`, '#ffbf3c', 18, 1);
+  Sound.play('sell');
+}
+
+const sellValue = tw => Math.floor(tw.spent * BAL.sellRate);
+
+function orbPos(tw) {
+  const bob = Math.sin(G.time * 3 + tw.seed) * 1.2;
+  return { x: tw.x + (8.5 + Math.cos(tw.aim) * 17) * GS, y: tw.y + (5 + Math.sin(tw.aim) * 17 + bob) * GS };
+}
+
+function fire(tw, tg, L) {
+  const o = orbPos(tw);
+  if (tw.type === 'sakura') {
+    G.projectiles.push({ kind: 'petal', x: o.x, y: o.y, tx: tg.x, ty: tg.y, target: tg, speed: 560, dmg: L.dmg, tower: tw, spin: 0 });
+  } else if (tw.type === 'yuki') {
+    G.projectiles.push({ kind: 'ice', x: o.x, y: o.y, tx: tg.x, ty: tg.y, target: tg, speed: 440, dmg: L.dmg, slow: L.slow, slowDur: L.slowDur, splash: (L.splash || 0) * TILE, tower: tw, ang: 0 });
+  } else if (tw.type === 'homura') {
+    const dist = Math.hypot(tg.x - o.x, tg.y - o.y);
+    G.projectiles.push({ kind: 'fire', x: o.x, y: o.y, tx: tg.x, ty: tg.y, target: tg, speed: 330, dmg: L.dmg, splash: L.splash * TILE, tower: tw, total: Math.max(1, dist), prog: 0 });
+  } else if (tw.type === 'rai') {
+    const hit = [tg]; let cur = tg;
+    for (let i = 1; i < L.chain; i++) {
+      let nb = null, bd = (1.9 * TILE) ** 2;
+      for (const e of G.enemies) {
+        if (!e.alive || hit.includes(e)) continue;
+        const d2 = (e.x - cur.x) ** 2 + (e.y - cur.y) ** 2;
+        if (d2 < bd) { bd = d2; nb = e; }
+      }
+      if (!nb) break;
+      hit.push(nb); cur = nb;
+    }
+    const pts = [o, ...hit.map(e => ({ x: e.x, y: e.y - e.r * 0.6 }))];
+    hit.forEach((e, i) => hurt(e, L.dmg * Math.pow(0.85, i), tw, true));
+    G.effects.push({ kind: 'bolt', pts, life: 0.22, max: 0.22 });
+    for (const p of pts.slice(1)) burst(p.x, p.y, '#fff27a', 3, 80, 'star');
+  }
+  Sound.play(tw.type);
+}
+
+/* ---------- update ---------- */
+function update(dt) {
+  G.time += dt;
+  if (G.phase === 'build' && G.wave > 0) {
+    G.countdown -= dt;
+    if (G.countdown <= 0) startWave(true);
+  }
+  if (G.phase === 'wave') {
+    G.waveTime += dt;
+    while (G.spawnQueue.length && G.spawnQueue[0].t <= G.waveTime) spawnEnemy(G.spawnQueue.shift().type, 0);
+  }
+
+  for (const e of G.enemies) {
+    if (!e.alive) continue;
+    e.t += dt; e.flash = Math.max(0, e.flash - dt);
+    if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
+    e.dist += e.speed * (1 - e.slow) * TILE * dt;
+    if (e.dist >= PATH_LEN) { leak(e); continue; }
+    const p = posAt(e.dist);
+    e.x = p.x; e.y = p.y;
+    if (Math.abs(p.dx) > 0.1) e.dir = Math.sign(p.dx);
+    if (e.slowT > 0 && Math.random() < dt * 6) G.particles.push({ x: e.x + rnd(-e.r, e.r), y: e.y - rnd(0, e.r * 1.4), vx: 0, vy: -16, g: 0, life: 0.6, max: 0.6, size: 3, color: '#cdeeff', shape: 'star', rot: 0 });
+    if (e.type === 'boss' && Math.random() < dt * 14) G.particles.push({ x: e.x + rnd(-24, 24), y: e.y - rnd(0, 30), vx: rnd(-10, 10), vy: -30, g: 0, life: 0.8, max: 0.8, size: 4, color: 'rgba(120,60,190,.8)', shape: 'dot', rot: 0 });
+  }
+
+  for (const tw of G.towers) {
+    const L = TOWERS[tw.type].levels[tw.level - 1];
+    const R2 = (L.range * TILE) ** 2;
+    tw.cd -= dt; tw.fired = Math.max(0, tw.fired - dt);
+    let target = null, best = -Infinity;
+    for (const e of G.enemies) {
+      if (!e.alive) continue;
+      const d2 = (e.x - tw.x) ** 2 + (e.y - tw.y) ** 2;
+      if (d2 > R2) continue;
+      const score = tw.mode === 'strong' ? e.hp : tw.mode === 'close' ? -d2 : e.dist;
+      if (score > best) { best = score; target = e; }
+    }
+    if (target) {
+      tw.aim = lerpAngle(tw.aim, Math.atan2(target.y - tw.y - 5 * GS, target.x - tw.x - 8.5 * GS), Math.min(1, dt * 14));
+      if (tw.cd <= 0) { fire(tw, target, L); tw.cd = L.rate; tw.fired = 0.15; }
+    }
+  }
+
+  for (const p of G.projectiles) {
+    if (p.target && p.target.alive) { p.tx = p.target.x; p.ty = p.target.y - p.target.r * 0.5; }
+    else p.target = null;
+    const dx = p.tx - p.x, dy = p.ty - p.y, d = Math.hypot(dx, dy), step = p.speed * dt;
+    if (d <= step + 2) { p.x = p.tx; p.y = p.ty; impact(p); p.dead = true; continue; }
+    p.x += dx / d * step; p.y += dy / d * step;
+    if (p.kind === 'petal') p.spin += dt * 14;
+    if (p.kind === 'ice') p.ang = Math.atan2(dy, dx);
+    if (p.kind === 'fire') {
+      p.prog = Math.min(1, 1 - d / p.total);
+      if (Math.random() < dt * 30) G.particles.push({ x: p.x, y: p.y - Math.sin(p.prog * Math.PI) * 22, vx: rnd(-20, 20), vy: rnd(-30, 0), g: 0, life: 0.35, max: 0.35, size: 3, color: '#ffb35c', shape: 'dot', rot: 0 });
+    }
+  }
+  G.projectiles = G.projectiles.filter(p => !p.dead);
+
+  updateFx(dt);
+  compact(G.enemies);
+
+  if (G.state === 'playing' && G.phase === 'wave' && !G.spawnQueue.length && !G.enemies.length) waveClear();
+}
+
+function compact(arr) { let j = 0; for (const e of arr) if (e.alive) arr[j++] = e; arr.length = j; }
+
+function impact(p) {
+  if (p.kind === 'petal') {
+    if (p.target) hurt(p.target, p.dmg, p.tower);
+    burst(p.x, p.y, '#ffb3d6', 4, 70, 'petal');
+  } else if (p.kind === 'ice') {
+    const hits = p.splash > 0 ? G.enemies.filter(e => e.alive && Math.hypot(e.x - p.x, e.y - p.y) <= p.splash + e.r) : (p.target ? [p.target] : []);
+    for (const e of hits) {
+      if (p.slow >= e.slow || e.slowT <= 0) e.slow = p.slow;
+      e.slowT = Math.max(e.slowT, p.slowDur);
+      hurt(e, e === p.target ? p.dmg : p.dmg * 0.6, p.tower);
+    }
+    G.effects.push({ kind: 'ring', x: p.x, y: p.y, r0: 4, r1: Math.max(22, p.splash), w: 4, color: '#bfe8ff', life: 0.35, max: 0.35 });
+  } else if (p.kind === 'fire') {
+    for (const e of G.enemies) {
+      if (!e.alive) continue;
+      const d = Math.hypot(e.x - p.x, e.y - p.y);
+      if (d <= p.splash + e.r * 0.5) hurt(e, p.dmg * (1 - 0.4 * Math.min(1, d / p.splash)), p.tower);
+    }
+    G.effects.push({ kind: 'boom', x: p.x, y: p.y, r: p.splash, life: 0.42, max: 0.42 });
+    burst(p.x, p.y, '#ffb35c', 10, 150);
+    G.shake = Math.max(G.shake, 2.5);
+    Sound.play('boom');
+  }
+}
+
+function updateFx(dt) {
+  for (const f of G.effects) f.life -= dt;
+  G.effects = G.effects.filter(f => f.life > 0);
+  for (const p of G.particles) {
+    p.life -= dt; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += (p.g || 0) * dt;
+    p.vx *= 1 - dt * 2; p.rot = (p.rot || 0) + dt * 4;
+  }
+  G.particles = G.particles.filter(p => p.life > 0);
+  if (G.particles.length > 700) G.particles.splice(0, G.particles.length - 700);
+  for (const t of G.texts) { t.life -= dt; t.y -= 26 * dt; }
+  G.texts = G.texts.filter(t => t.life > 0);
+  G.shake = Math.max(0, G.shake - dt * 30);
+  G.leakFlash = Math.max(0, G.leakFlash - dt);
+  G.crystalHurt = Math.max(0, G.crystalHurt - dt);
+}
+
+function burst(x, y, color, n, speed, shape = 'dot') {
+  if (G.silent) return;
+  for (let i = 0; i < n; i++) {
+    const a = Math.random() * TAU, s = rnd(0.3, 1) * speed;
+    G.particles.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 30, g: 160, life: rnd(0.4, 0.8), max: 0.8, size: rnd(2, 4.5), color, shape, rot: Math.random() * TAU });
+  }
+}
+function floatText(x, y, s, color, size = 14, life = 0.8) {
+  if (G.silent) return;
+  G.texts.push({ x, y, s: String(s), color, size, life, max: life });
+}
+
+/* =====================================================================
+   Rendering
+   ===================================================================== */
+const canvas = $('#game'), ctx = canvas.getContext('2d');
+const view = { k: 1, cssW: W, cssH: H };
+const ambient = [];
+for (let i = 0; i < 14; i++) ambient.push(newPetal(true));
+function newPetal(anywhere) {
+  return { x: anywhere ? Math.random() * W : rnd(-60, W * 0.6), y: anywhere ? Math.random() * H : -12, vx: rnd(14, 30), vy: rnd(16, 34), rot: Math.random() * TAU, vr: rnd(-2, 2), s: rnd(3, 5.5), ph: Math.random() * TAU };
+}
+function updateAmbient(dt) {
+  if (reduceMotion) return;
+  for (const p of ambient) {
+    p.x += (p.vx + Math.sin(G.time * 1.3 + p.ph) * 14) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+    if (p.y > H + 12 || p.x > W + 12) Object.assign(p, newPetal(false));
+  }
+}
+
+function render() {
+  const t = G.time;
+  ctx.setTransform(view.k, 0, 0, view.k, 0, 0);
+  ctx.save();
+  if (G.shake > 0 && !reduceMotion) ctx.translate(rnd(-1, 1) * G.shake, rnd(-1, 1) * G.shake);
+  ctx.drawImage(bgCanvas, 0, 0, W, H);
+
+  if (G.buildType) {
+    ctx.save(); ctx.strokeStyle = 'rgba(255,255,255,.6)'; ctx.lineWidth = 1.5; ctx.setLineDash([5, 5]);
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) if (canBuild(c, r)) { rr(ctx, c * TILE + 6, r * TILE + 6, TILE - 12, TILE - 12, 12); ctx.stroke(); }
+    ctx.restore();
+  }
+  drawPortal(ctx, t);
+  ctx.save(); ctx.translate(CRYSTAL.x, CRYSTAL.y); drawCrystalShape(ctx, t, G.crystalHurt, G.lives / G.maxLives); ctx.restore();
+
+  if (G.selected) drawRange(G.selected.x, G.selected.y, TOWERS[G.selected.type].levels[G.selected.level - 1].range * TILE, '255,111,174');
+  const h = G.hover;
+  if (G.buildType && h) {
+    const ok = canBuild(h.c, h.r) && G.gold >= TOWERS[G.buildType].cost;
+    ctx.fillStyle = ok ? 'rgba(80,220,150,.42)' : 'rgba(255,80,110,.42)';
+    rr(ctx, h.c * TILE + 3, h.r * TILE + 3, TILE - 6, TILE - 6, 12); ctx.fill();
+    if (canBuild(h.c, h.r)) {
+      drawRange((h.c + 0.5) * TILE, (h.r + 0.5) * TILE, TOWERS[G.buildType].levels[0].range * TILE, ok ? '255,255,255' : '255,80,110');
+      ctx.save(); ctx.globalAlpha = 0.7; ctx.translate((h.c + 0.5) * TILE, (h.r + 0.5) * TILE); ctx.scale(GS, GS);
+      drawGirl(ctx, G.buildType, 1, Math.PI * 0.25, t, { seed: 0 }); ctx.restore();
+    }
+  } else if (h && !G.buildType) {
+    const tw = towerAt(h.c, h.r);
+    if (tw && tw !== G.selected) { ctx.strokeStyle = 'rgba(255,255,255,.9)'; ctx.lineWidth = 2.5; el(ctx, tw.x, tw.y + 16, 27, 11); ctx.stroke(); }
+  }
+
+  const list = [...G.towers, ...G.enemies].sort((a, b) => a.y - b.y);
+  for (const o of list) {
+    if (o.isTower) drawTower(o, t);
+    else drawEnemy(o);
+  }
+
+  for (const p of G.projectiles) drawProjectile(p);
+  for (const f of G.effects) drawEffect(f);
+  for (const p of G.particles) drawParticle(p);
+  for (const e of G.enemies) drawHpBar(e);
+  drawTexts();
+  ctx.restore();
+
+  if (!reduceMotion) {
+    ctx.fillStyle = 'rgba(255,190,218,.85)';
+    for (const p of ambient) { ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); petalPath(ctx, p.s); ctx.fill(); ctx.restore(); }
+  }
+  if (G.leakFlash > 0) {
+    const g = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, W * 0.62);
+    g.addColorStop(0, 'rgba(255,60,100,0)'); g.addColorStop(1, `rgba(255,60,100,${G.leakFlash * 0.6})`);
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  }
+}
+
+function drawRange(x, y, R, rgb) {
+  ctx.save();
+  ctx.fillStyle = `rgba(${rgb},.14)`; circ(ctx, x, y, R); ctx.fill();
+  ctx.strokeStyle = `rgba(${rgb},.9)`; ctx.lineWidth = 2; ctx.setLineDash([8, 6]); ctx.lineDashOffset = -G.time * 18; ctx.stroke();
+  ctx.restore();
+}
+
+function drawTower(tw, t) {
+  const k = Math.min(1, (G.time - tw.born) / 0.35);
+  ctx.save(); ctx.translate(tw.x, tw.y);
+  const s = GS * (k < 1 ? 0.6 + 0.4 * easeBack(k) : 1);
+  ctx.scale(s, s);
+  if (tw === G.selected) { ctx.strokeStyle = '#ff6fae'; ctx.lineWidth = 3; el(ctx, 0, 15, 25, 10); ctx.stroke(); }
+  drawGirl(ctx, tw.type, tw.level, tw.aim, t, { fired: tw.fired, seed: tw.seed });
+  ctx.restore();
+}
+
+function drawEnemy(e) {
+  ctx.save(); ctx.translate(e.x, e.y + e.r * 0.45);
+  ctx.fillStyle = 'rgba(74,55,99,.22)';
+  el(ctx, 0, 0, e.r * (e.type === 'ghost' ? 0.6 : 0.95), e.r * 0.3); ctx.fill();
+  drawEnemyBody(ctx, e.type, e.r, e.t, e.dir, e.flash > 0);
+  if (e.slowT > 0) {
+    ctx.fillStyle = 'rgba(150,215,255,.35)'; el(ctx, 0, -e.r * 0.55, e.r * 1.05, e.r * 0.75); ctx.fill();
+    snowflake(ctx, e.r * 0.8, -e.r * 1.3, 4, '#ffffff', 2.4); snowflake(ctx, e.r * 0.8, -e.r * 1.3, 4, '#4fa3f7', 1.1);
+  }
+  ctx.restore();
+}
+
+function drawHpBar(e) {
+  if (e.hp >= e.maxHp && e.type !== 'boss') return;
+  const w = e.type === 'boss' ? 62 : Math.max(24, e.r * 1.9), h = e.type === 'boss' ? 7 : 5;
+  const top = e.type === 'ghost' ? e.r * 2.3 : e.type === 'knight' ? e.r * 1.75 : e.type === 'boss' ? e.r * 1.8 : e.r * 1.4;
+  const x = e.x - w / 2, y = e.y + e.r * 0.45 - top - 10;
+  ctx.fillStyle = OUT; rr(ctx, x - 1.5, y - 1.5, w + 3, h + 3, 3.5); ctx.fill();
+  const f = Math.max(0, e.hp / e.maxHp);
+  ctx.fillStyle = f > 0.6 ? '#5fe0a0' : f > 0.3 ? '#ffcb47' : '#ff5d73';
+  if (f > 0) { rr(ctx, x, y, Math.max(2, w * f), h, 2); ctx.fill(); }
+  if (e.armor > 0) {
+    ctx.fillStyle = '#9aa3bf'; ctx.strokeStyle = OUT; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x - 9, y - 2); ctx.lineTo(x - 2, y - 2); ctx.lineTo(x - 2.5, y + 3); ctx.quadraticCurveTo(x - 5.5, y + 7.5, x - 8.5, y + 3); ctx.closePath(); ctx.fill(); ctx.stroke();
+  }
+}
+
+function drawProjectile(p) {
+  const c = ctx;
+  if (p.kind === 'fire') { c.fillStyle = 'rgba(74,55,99,.2)'; el(c, p.x, p.y + 6, 5, 2); c.fill(); }
+  c.save(); c.translate(p.x, p.y);
+  if (p.kind === 'petal') {
+    c.rotate(p.spin); c.fillStyle = '#ff8fc4'; c.strokeStyle = '#fff'; c.lineWidth = 1.4;
+    petalPath(c, 6.5); c.fill(); c.stroke();
+  } else if (p.kind === 'ice') {
+    c.rotate(p.ang); c.fillStyle = '#d8f3ff'; c.strokeStyle = '#2f7fd8'; c.lineWidth = 1.3;
+    c.beginPath(); c.moveTo(10, 0); c.lineTo(0, -4.5); c.lineTo(-8, 0); c.lineTo(0, 4.5); c.closePath(); c.fill(); c.stroke();
+  } else if (p.kind === 'fire') {
+    c.translate(0, -Math.sin(p.prog * Math.PI) * 22);
+    const g = c.createRadialGradient(0, 0, 1, 0, 0, 14);
+    g.addColorStop(0, 'rgba(255,240,170,1)'); g.addColorStop(0.45, 'rgba(255,140,60,.9)'); g.addColorStop(1, 'rgba(255,90,120,0)');
+    c.fillStyle = g; circ(c, 0, 0, 14); c.fill();
+    c.fillStyle = '#fff6c8'; circ(c, 0, 0, 4); c.fill();
+  }
+  c.restore();
+}
+
+function drawEffect(f) {
+  const k = 1 - f.life / f.max, c = ctx;
+  c.save();
+  if (f.kind === 'ring') {
+    c.globalAlpha = 1 - k; c.strokeStyle = f.color; c.lineWidth = f.w * (1 - k) + 1;
+    circ(c, f.x, f.y, f.r0 + (f.r1 - f.r0) * easeOut(k)); c.stroke();
+  } else if (f.kind === 'boom') {
+    const r = f.r * (0.45 + 0.55 * easeOut(k));
+    const g = c.createRadialGradient(f.x, f.y, 1, f.x, f.y, r);
+    g.addColorStop(0, 'rgba(255,250,210,.95)'); g.addColorStop(0.5, 'rgba(255,150,70,.75)'); g.addColorStop(1, 'rgba(255,90,140,0)');
+    c.globalAlpha = 1 - k * k; c.fillStyle = g; circ(c, f.x, f.y, r); c.fill();
+    c.strokeStyle = '#fff3c4'; c.lineWidth = 3 * (1 - k); circ(c, f.x, f.y, r); c.stroke();
+  } else if (f.kind === 'bolt') {
+    c.globalAlpha = f.life / f.max; c.lineJoin = 'round'; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(f.pts[0].x, f.pts[0].y);
+    for (let i = 1; i < f.pts.length; i++) {
+      const a = f.pts[i - 1], b = f.pts[i], n = 5;
+      const nx = -(b.y - a.y), ny = b.x - a.x, len = Math.hypot(nx, ny) || 1;
+      for (let j = 1; j < n; j++) {
+        const off = rnd(-7, 7);
+        c.lineTo(a.x + (b.x - a.x) * j / n + nx / len * off, a.y + (b.y - a.y) * j / n + ny / len * off);
+      }
+      c.lineTo(b.x, b.y);
+    }
+    c.strokeStyle = 'rgba(255,236,110,.5)'; c.lineWidth = 8; c.stroke();
+    c.strokeStyle = 'rgba(190,150,255,.7)'; c.lineWidth = 4; c.stroke();
+    c.strokeStyle = '#fffbe6'; c.lineWidth = 2; c.stroke();
+  }
+  c.restore();
+}
+
+function drawParticle(p) {
+  const a = p.life / p.max, c = ctx;
+  c.globalAlpha = Math.min(1, a * 1.6); c.fillStyle = p.color;
+  if (p.shape === 'star') { starPath(c, p.x, p.y, p.size, p.size * 0.42, 4, p.rot); c.fill(); }
+  else if (p.shape === 'petal') { c.save(); c.translate(p.x, p.y); c.rotate(p.rot); petalPath(c, p.size * 1.2); c.fill(); c.restore(); }
+  else { circ(c, p.x, p.y, p.size * (0.5 + 0.5 * a)); c.fill(); }
+  c.globalAlpha = 1;
+}
+
+function drawTexts() {
+  const c = ctx;
+  c.textAlign = 'center'; c.textBaseline = 'middle'; c.lineJoin = 'round';
+  for (const t of G.texts) {
+    c.globalAlpha = Math.min(1, (t.life / t.max) * 2.5);
+    c.font = `${t.size}px ${FONT}`;
+    c.lineWidth = 3.5; c.strokeStyle = OUT; c.strokeText(t.s, t.x, t.y);
+    c.fillStyle = t.color; c.fillText(t.s, t.x, t.y);
+  }
+  c.globalAlpha = 1; c.lineJoin = 'miter';
+}
+
+/* =====================================================================
+   UI
+   ===================================================================== */
+const ui = {};
+const els = {
+  app: $('#app'), field: $('#field'), frame: $('#frame'), panel: $('#panel'), shop: $('#shop'), info: $('#info'),
+  lives: $('#livesVal'), gold: $('#goldVal'), wave: $('#waveVal'), statLives: $('#statLives'),
+  waveLabel: $('#waveLabel'), waveSub: $('#waveSub'), wavePreview: $('#wavePreview'), btnWave: $('#btnWave'),
+  btnSpeed: $('#btnSpeed'), btnPause: $('#btnPause'), btnSound: $('#btnSound'),
+  bannerLayer: $('#bannerLayer'), toast: $('#toast'),
+  start: $('#startScreen'), pause: $('#pauseScreen'), end: $('#endScreen'),
+};
+$('#waveTotal').textContent = WAVES.length;
+const cards = {};
+const isTouchUI = matchMedia('(pointer: coarse)').matches;
+
+function portrait(cv, type, scale) {
+  const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, cv.width, cv.height);
+  const s = cv.width / 64;
+  c.setTransform(s * scale, 0, 0, s * scale, cv.width / 2, cv.height * 0.62);
+  drawGirl(c, type, 1, Math.PI * 0.3, 0.5, { still: true });
+}
+
+function buildShop() {
+  TOWER_KEYS.forEach((k, i) => {
+    const d = TOWERS[k];
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'card'; b.style.setProperty('--tint', d.tint);
+    b.setAttribute('aria-label', `${d.name}，${d.title}，${d.cost} 金币`);
+    b.innerHTML = `<span class="key">${i + 1}</span><canvas width="100" height="100"></canvas><span class="txt"><span class="nm">${d.name}</span><span class="role">${d.title}</span><span class="cost">${COIN_SVG}<b>${d.cost}</b></span></span>`;
+    portrait(b.querySelector('canvas'), k, 0.74);
+    b.addEventListener('click', () => selectBuild(k));
+    els.shop.append(b);
+    cards[k] = b;
+  });
+}
+
+function enemyIcon(type) {
+  const cv = document.createElement('canvas'); cv.width = 60; cv.height = 60;
+  const c = cv.getContext('2d');
+  const r = type === 'boss' ? 13 : type === 'mini' ? 9 : 11;
+  c.setTransform(2, 0, 0, 2, 30, type === 'ghost' ? 44 : 48);
+  drawEnemyBody(c, type, r, 0.2, 1, false);
+  return cv.toDataURL();
+}
+const ENEMY_ICONS = {};
+for (const k of Object.keys(ENEMIES)) ENEMY_ICONS[k] = enemyIcon(k);
+
+function selectBuild(type) {
+  if (G.state !== 'playing') return;
+  Sound.init();
+  G.buildType = G.buildType === type ? null : type;
+  G.selected = null;
+  if (isTouchUI) G.hover = null;
+  if (G.buildType && G.gold < TOWERS[type].cost) toast(`金币不足，还差 ${TOWERS[type].cost - G.gold}`);
+  Sound.play('click');
+}
+function selectTower(tw) { G.selected = tw; G.buildType = null; Sound.play('click'); }
+function cancelSelection() { G.buildType = null; G.selected = null; G.hover = isTouchUI ? null : G.hover; }
+
+let toastTimer = 0;
+function toast(msg) {
+  if (G.silent) return;
+  els.toast.textContent = msg; els.toast.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => els.toast.classList.remove('show'), 1400);
+}
+function banner(title, sub, kind) {
+  if (G.silent) return;
+  const b = document.createElement('div');
+  b.className = 'banner ' + (kind || '');
+  b.innerHTML = `<div class="b-title"></div>${sub ? '<div class="b-sub"></div>' : ''}`;
+  b.querySelector('.b-title').textContent = title;
+  if (sub) b.querySelector('.b-sub').textContent = sub;
+  els.bannerLayer.querySelectorAll('.banner').forEach(n => n.remove());
+  els.bannerLayer.append(b);
+  setTimeout(() => b.remove(), 2400);
+}
+
+function statRows(d, L, N) {
+  const fmt = (a, b, f) => b != null && f(b) !== f(a) ? `${f(a)} <span class="up">→ ${f(b)}</span>` : f(a);
+  const one = v => (Math.round(v * 10) / 10).toString();
+  let rows = `<dt>伤害</dt><dd>${fmt(L.dmg, N && N.dmg, v => v)}</dd>`;
+  rows += `<dt>射程</dt><dd>${fmt(L.range, N && N.range, v => one(v) + ' 格')}</dd>`;
+  rows += `<dt>攻速</dt><dd>${fmt(1 / L.rate, N && 1 / N.rate, v => one(v) + ' 次/秒')}</dd>`;
+  if (L.slow) rows += `<dt>减速</dt><dd>${fmt(L.slow, N && N.slow, v => Math.round(v * 100) + '%')} · ${one(L.slowDur)} 秒</dd>`;
+  if (L.splash || (N && N.splash)) rows += `<dt>溅射</dt><dd>${fmt(L.splash || 0, N && N.splash, v => v ? one(v) + ' 格' : '无')}</dd>`;
+  if (L.chain) rows += `<dt>连锁</dt><dd>${fmt(L.chain, N && N.chain, v => v + ' 个目标')}</dd>`;
+  return rows;
+}
+
+function renderInfo() {
+  const tw = G.selected;
+  const key = tw ? `t${tw.id}-${tw.level}-${tw.mode}` : G.buildType ? 'b' + G.buildType : 'none';
+  if (key !== ui.infoKey) {
+    ui.infoKey = key;
+    if (tw) {
+      const d = TOWERS[tw.type], L = d.levels[tw.level - 1], N = d.levels[tw.level];
+      els.info.style.setProperty('--tint', d.tint);
+      els.info.innerHTML = `
+        <div class="info-head"><canvas width="112" height="112"></canvas>
+          <div><div class="info-name">${d.name}<span class="lv">Lv.${tw.level}${N ? '' : ' 满级'}</span></div><div class="info-role">${d.title}</div></div></div>
+        <dl class="statlist">${statRows(d, L, N)}</dl>
+        <div class="info-meta"><span>击败 <b data-k="kills">0</b></span><span>累计伤害 <b data-k="dmg">0</b></span></div>
+        <div class="seg" role="group" aria-label="攻击目标">${MODES.map(m => `<button type="button" data-mode="${m.k}" class="${tw.mode === m.k ? 'on' : ''}" aria-pressed="${tw.mode === m.k}">${m.n}</button>`).join('')}</div>
+        <div class="info-actions">
+          <button type="button" class="btn btn-primary" data-act="up" title="升级 (U)">${N ? `升级 <span class="cost">${COIN_SVG}${N.cost}</span>` : '已满级'}</button>
+          <button type="button" class="btn" data-act="sell" title="出售 (X)">出售 <span class="cost">+${sellValue(tw)}</span></button>
+        </div>`;
+      portrait(els.info.querySelector('canvas'), tw.type, 0.8);
+    } else if (G.buildType) {
+      const d = TOWERS[G.buildType], L = d.levels[0];
+      els.info.style.setProperty('--tint', d.tint);
+      els.info.innerHTML = `
+        <div class="info-head"><canvas width="112" height="112"></canvas>
+          <div><div class="info-name">${d.name}<span class="lv">召唤 ${d.cost}</span></div><div class="info-role">${d.title}</div></div></div>
+        <p class="info-desc">${d.desc}</p>
+        <dl class="statlist">${statRows(d, L, null)}</dl>
+        <p class="hint">${isTouchUI ? '点一下草地预览位置，再点一下确认召唤。' : '点击草地召唤，按住 Shift 可连续放置；右键或 Esc 取消。'}</p>`;
+      portrait(els.info.querySelector('canvas'), G.buildType, 0.8);
+    } else {
+      els.info.innerHTML = `
+        <h2 class="sec-title">作战提示</h2>
+        <ul class="tips">
+          <li>选一位<b>魔法少女</b>，再点草地召唤她。</li>
+          <li>点已召唤的角色可以<b>升级</b>或<b>出售</b>（返还 70%）。</li>
+          <li><b>南瓜骑士</b>有护甲，交给焰华的爆炸或雷音的闪电。</li>
+          <li><b>胖胖史莱姆</b>被击败后会分裂成三只小史莱姆。</li>
+          <li>快捷键：1–4 选角色 · 空格暂停 · F 切换速度 · N 开始下一波</li>
+        </ul>`;
+    }
+  }
+  if (tw) {
+    const N = TOWERS[tw.type].levels[tw.level];
+    const up = els.info.querySelector('[data-act="up"]');
+    if (up) up.disabled = !N || G.gold < N.cost;
+    const k = els.info.querySelector('[data-k="kills"]'), dm = els.info.querySelector('[data-k="dmg"]');
+    if (k) k.textContent = tw.kills;
+    if (dm) dm.textContent = Math.round(tw.dmg);
+  }
+}
+
+els.info.addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b || !G.selected) return;
+  if (b.dataset.mode) { G.selected.mode = b.dataset.mode; Sound.play('click'); }
+  else if (b.dataset.act === 'up') upgradeTower(G.selected);
+  else if (b.dataset.act === 'sell') sellTower(G.selected);
+});
+
+function waveChips(def) {
+  const counts = {};
+  for (const [type, n] of def) counts[type] = (counts[type] || 0) + n;
+  return Object.entries(counts).map(([type, n]) => `<span class="echip${type === 'boss' ? ' boss' : ''}" title="${ENEMIES[type].name}"><img src="${ENEMY_ICONS[type]}" alt="${ENEMIES[type].name}">×${n}</span>`).join('');
+}
+
+function renderWaveBox() {
+  const inWave = G.phase === 'wave';
+  const remaining = G.enemies.length + G.spawnQueue.length;
+  const next = Math.min(G.wave + 1, WAVES.length);
+  const cd = Math.max(0, Math.ceil(G.countdown));
+  const key = `${G.state}|${inWave}|${G.wave}|${cd}|${remaining}`;
+  if (key === ui.waveKey) return;
+  ui.waveKey = key;
+  const pw = inWave ? G.wave : next;
+  if (ui.previewWave !== pw) { ui.previewWave = pw; els.wavePreview.innerHTML = waveChips(WAVES[pw - 1]); }
+  if (inWave) {
+    els.waveLabel.textContent = `第 ${G.wave} 波 · 战斗中`;
+    els.waveSub.textContent = `场上和即将出现的魔物：${remaining} 只`;
+    els.btnWave.disabled = true; els.btnWave.textContent = '战斗中…';
+  } else {
+    els.waveLabel.textContent = `下一波 · 第 ${next} 波`;
+    els.waveSub.textContent = G.wave === 0 ? '布置好魔法少女后就出发吧' : `${cd} 秒后自动开始，提前开战可得额外金币`;
+    els.btnWave.disabled = G.state !== 'playing';
+    els.btnWave.innerHTML = G.wave === 0 ? '开始第 1 波' : `立即开始 <span class="cost">+${cd}${COIN_SVG}</span>`;
+  }
+}
+
+function updateUI() {
+  if (ui.lives !== G.lives) {
+    if (ui.lives !== undefined && G.lives < ui.lives) { els.statLives.classList.remove('hit'); void els.statLives.offsetWidth; els.statLives.classList.add('hit'); }
+    ui.lives = G.lives; els.lives.textContent = G.lives;
+  }
+  if (ui.gold !== G.gold) {
+    ui.gold = G.gold; els.gold.textContent = G.gold;
+    for (const k of TOWER_KEYS) cards[k].classList.toggle('poor', G.gold < TOWERS[k].cost);
+  }
+  if (ui.wave !== G.wave) { ui.wave = G.wave; els.wave.textContent = G.wave; }
+  if (ui.buildType !== G.buildType) {
+    ui.buildType = G.buildType;
+    for (const k of TOWER_KEYS) { cards[k].classList.toggle('sel', G.buildType === k); cards[k].setAttribute('aria-pressed', G.buildType === k); }
+  }
+  renderInfo();
+  renderWaveBox();
+  const cur = G.selected || G.buildType || (G.hover && towerAt(G.hover.c, G.hover.r)) ? 'pointer' : 'default';
+  if (ui.cursor !== cur) { ui.cursor = cur; canvas.style.cursor = cur; }
+}
+
+/* ---------- sizing ---------- */
+const stackedMQ = matchMedia('(max-aspect-ratio: 1/1), (max-width: 700px)');
+function resize() {
+  const stacked = stackedMQ.matches;
+  const fw = els.field.clientWidth - 6;
+  let w = fw;
+  if (!stacked) w = Math.min(fw, (els.field.clientHeight - 6) * 1.5);
+  w = Math.max(200, Math.floor(w));
+  const h = Math.round(w / 1.5);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+  view.k = canvas.width / W;
+  buildBackground(view.k);
+}
+let resizeRaf = 0;
+window.addEventListener('resize', () => { cancelAnimationFrame(resizeRaf); resizeRaf = requestAnimationFrame(resize); });
+
+/* ---------- input ---------- */
+function toLogical(e) { const r = canvas.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * W, y: (e.clientY - r.top) / r.height * H }; }
+function tileAt(x, y) { const c = Math.floor(x / TILE), r = Math.floor(y / TILE); return c < 0 || r < 0 || c >= COLS || r >= ROWS ? null : { c, r }; }
+
+canvas.addEventListener('pointermove', e => { if (e.pointerType !== 'mouse') return; const p = toLogical(e); G.hover = tileAt(p.x, p.y); });
+canvas.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') G.hover = null; });
+canvas.addEventListener('contextmenu', e => { e.preventDefault(); cancelSelection(); });
+canvas.addEventListener('pointerdown', e => {
+  if (G.state !== 'playing' || G.paused) return;
+  if (e.button === 2) return;
+  Sound.init();
+  const p = toLogical(e), tile = tileAt(p.x, p.y);
+  if (!tile) return;
+  const touch = e.pointerType !== 'mouse';
+  const tw = towerAt(tile.c, tile.r);
+  if (G.buildType) {
+    if (tw) { selectTower(tw); return; }
+    if (touch && !(G.hover && G.hover.c === tile.c && G.hover.r === tile.r)) { G.hover = tile; return; }
+    const placed = placeTower(G.buildType, tile.c, tile.r);
+    if (placed && !e.shiftKey) { G.buildType = null; if (touch) G.hover = null; }
+  } else if (tw) {
+    selectTower(tw);
+  } else {
+    G.selected = null;
+    if (touch) G.hover = null;
+  }
+});
+
+window.addEventListener('keydown', e => {
+  if (G.state !== 'playing') return;
+  if (e.target.closest && e.target.closest('button,summary') && (e.key === ' ' || e.key === 'Enter')) return;
+  const k = e.key.toLowerCase();
+  if (k >= '1' && k <= '4') selectBuild(TOWER_KEYS[+k - 1]);
+  else if (k === 'escape') { if (G.buildType || G.selected) cancelSelection(); else togglePause(); }
+  else if (k === ' ') { e.preventDefault(); togglePause(); }
+  else if (G.paused) return;
+  else if (k === 'u' && G.selected) upgradeTower(G.selected);
+  else if ((k === 'x' || k === 'delete') && G.selected) sellTower(G.selected);
+  else if (k === 'n') startWave(false);
+  else if (k === 'f') cycleSpeed();
+});
+
+document.addEventListener('click', e => { const b = e.target.closest && e.target.closest('button'); if (b && e.detail > 0) b.blur(); });
+
+function togglePause(force) {
+  if (G.state !== 'playing') return;
+  G.paused = typeof force === 'boolean' ? force : !G.paused;
+  els.pause.hidden = !G.paused;
+  if (G.paused) $('#btnResume').focus({ preventScroll: true });
+}
+function cycleSpeed() {
+  G.speed = G.speed === 1 ? 2 : G.speed === 2 ? 3 : 1;
+  els.btnSpeed.textContent = G.speed + '×';
+  Sound.play('click');
+}
+
+els.btnWave.addEventListener('click', () => { Sound.init(); startWave(false); });
+els.btnSpeed.addEventListener('click', cycleSpeed);
+els.btnPause.addEventListener('click', () => togglePause(true));
+function paintSoundBtn() { els.btnSound.innerHTML = Sound.enabled ? SOUND_ON : SOUND_OFF; els.btnSound.setAttribute('aria-pressed', Sound.enabled); }
+els.btnSound.addEventListener('click', () => { Sound.init(); Sound.toggle(); paintSoundBtn(); Sound.play('click'); });
+paintSoundBtn();
+$('#btnResume').addEventListener('click', () => togglePause(false));
+$('#btnRestart').addEventListener('click', () => { els.pause.hidden = true; beginGame(G.diff); });
+$('#btnQuit').addEventListener('click', () => { els.pause.hidden = true; showTitle(); });
+$('#btnRetry').addEventListener('click', () => beginGame(G.diff));
+$('#btnHome').addEventListener('click', showTitle);
+document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'playing' && !G.paused) togglePause(true); });
+
+/* ---------- screens ---------- */
+let chosenDiff = 'normal';
+document.querySelectorAll('.diff button').forEach(b => b.addEventListener('click', () => {
+  chosenDiff = b.dataset.diff;
+  document.querySelectorAll('.diff button').forEach(x => x.setAttribute('aria-checked', x === b));
+  Sound.init(); Sound.play('click');
+}));
+$('#btnStart').addEventListener('click', () => { Sound.init(); beginGame(chosenDiff); });
+
+function beginGame(diff) {
+  resetGame(diff);
+  ui.infoKey = null; ui.waveKey = null; ui.previewWave = null;
+  els.start.hidden = true; els.end.hidden = true; els.pause.hidden = true;
+  els.bannerLayer.innerHTML = '';
+  banner('守护开始！', '先召唤几位魔法少女，再开启第 1 波', '');
+  Sound.play('wave');
+}
+
+function showTitle() {
+  G.state = 'title'; G.paused = false;
+  G.enemies = []; G.projectiles = []; G.effects = []; G.particles = []; G.texts = []; G.towers = [];
+  G.selected = null; G.buildType = null;
+  els.end.hidden = true; els.start.hidden = false;
+  els.bannerLayer.innerHTML = '';
+  paintBest();
+}
+
+const BEST_KEY = 'sakura-td-best';
+function loadBest() { try { return JSON.parse(localStorage.getItem(BEST_KEY)) || {}; } catch (e) { return {}; } }
+function saveBest() {
+  const best = loadBest(), cur = best[G.diff] || { wave: 0, stars: 0 };
+  const stars = G.win ? starCount() : 0;
+  const reached = G.win ? WAVES.length : Math.max(0, G.wave - 1);
+  if (reached > cur.wave || stars > cur.stars) best[G.diff] = { wave: Math.max(reached, cur.wave), stars: Math.max(stars, cur.stars) };
+  try { localStorage.setItem(BEST_KEY, JSON.stringify(best)); } catch (e) { /* storage is optional */ }
+}
+function paintBest() {
+  const best = loadBest();
+  const parts = Object.keys(DIFFS).filter(k => best[k]).map(k => {
+    const b = best[k];
+    return b.stars ? `${DIFFS[k].name} 通关 ${'★'.repeat(b.stars)}${'☆'.repeat(3 - b.stars)}` : `${DIFFS[k].name} 撑过 ${b.wave} 波`;
+  });
+  $('#bestRec').textContent = parts.length ? '最佳纪录 · ' + parts.join(' / ') : '';
+}
+const starCount = () => { const f = G.lives / G.maxLives; return f >= 0.9 ? 3 : f >= 0.5 ? 2 : 1; };
+
+function showEnd() {
+  G.state = 'over';
+  els.end.hidden = false;
+  els.end.classList.toggle('lose', !G.win);
+  const stars = G.win ? starCount() : 0;
+  $('#endTitle').textContent = G.win ? '守护成功！' : '守护失败…';
+  const msg = G.win
+    ? (stars === 3 ? ['完美守护！', '樱之水晶闪闪发光～'] : stars === 2 ? ['魔物全部被击退了，', '辛苦啦！'] : ['惊险过关！', '下次试试多召唤几位雪奈来减速吧。'])
+    : [`樱之水晶在第 ${G.wave} 波被攻破了。`, '调整阵容，再来一次吧！'];
+  $('#endMsg').innerHTML = msg.map(m => `<span>${m}</span>`).join('');
+  const starsEl = $('#endStars');
+  starsEl.hidden = !G.win;
+  starsEl.innerHTML = [0, 1, 2].map(i => STAR_SVG(i < stars)).join('');
+  starsEl.querySelectorAll('svg').forEach((s, i) => { s.classList.add('pop'); s.style.animationDelay = (0.15 + i * 0.18) + 's'; });
+  $('#esWave').textContent = `${G.win ? WAVES.length : G.wave} / ${WAVES.length}`;
+  $('#esKills').textContent = G.stats.kills;
+  $('#esLives').textContent = G.lives;
+  $('#esGold').textContent = G.stats.goldEarned;
+  $('#btnRetry').focus({ preventScroll: true });
+}
+
+/* ---------- overlay art: petals + heroine line-up ---------- */
+const fxPetals = [];
+for (let i = 0; i < 26; i++) fxPetals.push({ x: Math.random(), y: Math.random(), vx: rnd(0.02, 0.05), vy: rnd(0.03, 0.07), rot: Math.random() * TAU, vr: rnd(-2, 2), s: rnd(4, 8), ph: Math.random() * TAU });
+let overlayClock = 0;
+function drawOverlayFx(cv, dt) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.round(innerWidth * dpr), h = Math.round(innerHeight * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, w, h);
+  c.fillStyle = 'rgba(255,170,206,.8)';
+  for (const p of fxPetals) {
+    if (!reduceMotion) {
+      p.x += (p.vx + Math.sin(overlayClock + p.ph) * 0.02) * dt; p.y += p.vy * dt; p.rot += p.vr * dt;
+      if (p.y > 1.05 || p.x > 1.05) { p.y = -0.05; p.x = Math.random() * 0.8 - 0.1; }
+    }
+    c.save(); c.translate(p.x * w, p.y * h); c.rotate(p.rot); c.scale(dpr, dpr); petalPath(c, p.s); c.fill(); c.restore();
+  }
+}
+
+function drawLineup(cv, mood, t) {
+  const r = cv.getBoundingClientRect();
+  if (!r.width) return;
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  const w = Math.round(r.width * dpr), h = Math.round(r.height * dpr);
+  if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+  const c = cv.getContext('2d');
+  c.setTransform(1, 0, 0, 1, 0, 0); c.clearRect(0, 0, w, h);
+  const k = Math.min(w / 400, h / 160);
+  c.setTransform(k, 0, 0, k, (w - 400 * k) / 2, (h - 160 * k) / 2);
+  c.save(); c.translate(200, 112); c.scale(1.25, 1.25); drawCrystalShape(c, t, mood === 'sad' ? 0.6 : 0, mood === 'sad' ? 0.2 : 1); c.restore();
+  const xs = [48, 126, 274, 352];
+  TOWER_KEYS.forEach((type, i) => {
+    let aim, jump = 0;
+    if (mood === 'happy') { aim = -Math.PI / 2 + Math.sin(t * 4 + i) * 0.5; jump = -Math.abs(Math.sin(t * 5 + i * 0.8)) * 10; }
+    else if (mood === 'sad') aim = Math.PI / 2 + (i < 2 ? 0.4 : -0.4);
+    else aim = (i < 2 ? -0.9 : -2.25) + Math.sin(t * 2 + i) * 0.35;
+    c.save(); c.translate(xs[i], 108 + jump); c.scale(1.6, 1.6);
+    drawGirl(c, type, i === 1 || i === 2 ? 3 : 2, aim, t + i, { mood, seed: i * 1.3, fired: mood === 'happy' ? 0.1 : 0 });
+    c.restore();
+  });
+}
+
+/* =====================================================================
+   Main loop
+   ===================================================================== */
+let lastTs = performance.now();
+function frame(now) {
+  const dt = Math.min(0.05, (now - lastTs) / 1000);
+  lastTs = now;
+  if (G.state === 'playing' && !G.paused) {
+    for (let i = 0; i < G.speed; i++) if (G.state === 'playing') update(dt);
+    updateAmbient(dt);
+  } else if (G.state === 'ending') {
+    G.time += dt; updateFx(dt); updateAmbient(dt);
+    G.endTimer -= dt;
+    if (G.endTimer <= 0) showEnd();
+  } else if (G.state === 'over') {
+    G.time += dt; updateFx(dt); updateAmbient(dt);
+  }
+  overlayClock += dt;
+  if (!els.start.hidden) {
+    drawOverlayFx(els.start.querySelector('.fx'), dt);
+    drawLineup($('#titleHero'), 'normal', overlayClock);
+  } else {
+    render();
+    if (!els.end.hidden) {
+      drawOverlayFx(els.end.querySelector('.fx'), dt);
+      drawLineup($('#endHero'), G.win ? 'happy' : 'sad', overlayClock);
+    }
+  }
+  updateUI();
+  requestAnimationFrame(frame);
+}
+
+buildShop();
+resize();
+paintBest();
+if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { ui.infoKey = null; });
+requestAnimationFrame(frame);
+
+// Hook for automated play-testing; harmless in normal play.
+window.__td = { G, TOWERS, ENEMIES, WAVES, BAL, DIFFS, grid, COLS, ROWS, TILE, PATH, resetGame, beginGame, startWave, placeTower, upgradeTower, sellTower, update, canBuild };
+})();
+</script>
+</body>
+</html>
